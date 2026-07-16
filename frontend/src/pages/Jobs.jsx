@@ -107,7 +107,8 @@ export default function Jobs() {
           </button>
         </form>
 
-        <div className="mt-6 flex flex-wrap gap-2">
+        <div className="mt-6 flex flex-wrap items-center gap-2">
+          <span className="text-[10px] uppercase tracking-[0.18em] text-neutral-500 font-semibold mr-1">Category</span>
           {CATEGORIES.map((c) => (
             <button
               key={c}
@@ -122,7 +123,8 @@ export default function Jobs() {
               {c}
             </button>
           ))}
-          <div className="w-px h-6 bg-neutral-200 mx-1 self-center" />
+          <div className="w-px h-6 bg-neutral-200 mx-2 self-center" />
+          <span className="text-[10px] uppercase tracking-[0.18em] text-neutral-500 font-semibold mr-1">Level</span>
           {EXPERIENCE.map((e) => (
             <button
               key={e}
@@ -137,7 +139,7 @@ export default function Jobs() {
               {e}
             </button>
           ))}
-          <div className="w-px h-6 bg-neutral-200 mx-1 self-center" />
+          <div className="w-px h-6 bg-neutral-200 mx-2 self-center" />
           <button
             onClick={() => setRemote(remote === true ? null : true)}
             className={`text-xs px-3 py-1.5 rounded-full border transition ${
@@ -145,7 +147,7 @@ export default function Jobs() {
             }`}
             data-testid="filter-remote"
           >
-            Remote
+            Remote only
           </button>
         </div>
       </section>
