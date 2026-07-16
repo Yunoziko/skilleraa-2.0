@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { ArrowUpRight, Bookmark, FileText, CheckCircle2, Sparkles } from "lucide-react";
 import DashboardShell from "@/components/layout/DashboardShell";
 import JobCard from "@/components/JobCard";
+import AiMatches from "@/components/AiMatches";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 
@@ -66,6 +67,11 @@ export default function StudentDashboard() {
         <StatCard icon={Bookmark} label="Saved" value={stats.saved} />
         <StatCard icon={Sparkles} label="Shortlisted" value={stats.shortlisted} />
         <StatCard icon={CheckCircle2} label="Hired" value={stats.hired} />
+      </div>
+
+      {/* AI matching */}
+      <div className="mt-6">
+        <AiMatches />
       </div>
 
       {/* Two-col */}

@@ -7,13 +7,17 @@ load_dotenv(ROOT_DIR / '.env')
 import os
 import logging
 import uuid
+import json
+import secrets
+import asyncio
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Literal
 
 import bcrypt
 import jwt
+import requests
 from bson import ObjectId
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, Query
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, Query, UploadFile, File, Header
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
@@ -102,6 +106,7 @@ def serialize_user(user: dict) -> dict:
         "education": user.get("education", ""),
         "portfolio_url": user.get("portfolio_url", ""),
         "resume_url": user.get("resume_url", ""),
+        "resume_filename": user.get("resume_filename", ""),
         "company_name": user.get("company_name", ""),
         "company_website": user.get("company_website", ""),
         "company_description": user.get("company_description", ""),
@@ -159,6 +164,7 @@ class ProfileUpdateIn(BaseModel):
     education: Optional[str] = None
     portfolio_url: Optional[str] = None
     resume_url: Optional[str] = None
+    resume_filename: Optional[str] = None
     company_name: Optional[str] = None
     company_website: Optional[str] = None
     company_description: Optional[str] = None
@@ -234,7 +240,7 @@ async def register(payload: RegisterIn, response: Response):
     access = create_access_token(str(user["_id"]), user["email"], user["role"])
     refresh = create_refresh_token(str(user["_id"]))
     set_auth_cookies(response, access, refresh)
-    return {"user": serialize_user(user), "access_token": access}
+    return {"user": serialize_user(user), "access_token": access, "refresh_token": refresh}
 
 
 @api.post("/auth/login")
@@ -246,13 +252,86 @@ async def login(payload: LoginIn, response: Response):
     access = create_access_token(str(user["_id"]), user["email"], user["role"])
     refresh = create_refresh_token(str(user["_id"]))
     set_auth_cookies(response, access, refresh)
-    return {"user": serialize_user(user), "access_token": access}
+    return {"user": serialize_user(user), "access_token": access, "refresh_token": refresh}
 
 
 @api.post("/auth/logout")
 async def logout(response: Response):
     clear_auth_cookies(response)
     return {"ok": True}
+
+
+@api.post("/auth/refresh")
+async def refresh_token(request: Request, response: Response):
+    token = request.cookies.get("refresh_token")
+    if not token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+    if not token:
+        raise HTTPException(status_code=401, detail="No refresh token")
+    try:
+        payload = jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
+        if payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid token type")
+        user = await db.users.find_one({"_id": ObjectId(payload["sub"])})
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Refresh token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+    access = create_access_token(str(user["_id"]), user["email"], user["role"])
+    new_refresh = create_refresh_token(str(user["_id"]))
+    set_auth_cookies(response, access, new_refresh)
+    return {"access_token": access, "refresh_token": new_refresh}
+
+
+class ForgotPasswordIn(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordIn(BaseModel):
+    token: str
+    password: str = Field(min_length=6, max_length=100)
+
+
+@api.post("/auth/forgot-password")
+async def forgot_password(payload: ForgotPasswordIn):
+    email = payload.email.lower().strip()
+    user = await db.users.find_one({"email": email})
+    # Always return success to prevent email enumeration
+    if user:
+        token = secrets.token_urlsafe(32)
+        await db.password_reset_tokens.insert_one({
+            "user_id": user["_id"],
+            "token": token,
+            "used": False,
+            "expires_at": datetime.now(timezone.utc) + timedelta(hours=1),
+            "created_at": datetime.now(timezone.utc),
+        })
+        # In production, email this. For demo, log to console and return in response.
+        logger.info(f"[Password Reset] {email} → token: {token}")
+        return {"ok": True, "message": "Password reset link sent", "dev_token": token}
+    return {"ok": True, "message": "If that email exists, a reset link has been sent"}
+
+
+@api.post("/auth/reset-password")
+async def reset_password(payload: ResetPasswordIn):
+    rec = await db.password_reset_tokens.find_one({"token": payload.token, "used": False})
+    if not rec:
+        raise HTTPException(status_code=400, detail="Invalid or already-used reset token")
+    expires_at = rec["expires_at"]
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Reset token has expired")
+    await db.users.update_one(
+        {"_id": rec["user_id"]},
+        {"$set": {"password_hash": hash_password(payload.password)}},
+    )
+    await db.password_reset_tokens.update_one({"_id": rec["_id"]}, {"$set": {"used": True}})
+    return {"ok": True, "message": "Password updated. Please log in."}
 
 
 @api.get("/auth/me")
@@ -578,6 +657,343 @@ async def client_dashboard(user: dict = Depends(get_current_user)):
     }
 
 
+# --- Object Storage ---
+STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
+APP_NAME = os.environ.get("APP_NAME", "skilleraa")
+_storage_key: Optional[str] = None
+
+MIME_TYPES = {
+    "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+    "gif": "image/gif", "webp": "image/webp", "pdf": "application/pdf",
+}
+ALLOWED_EXTS = set(MIME_TYPES.keys())
+MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 5MB
+
+
+def init_storage() -> Optional[str]:
+    global _storage_key
+    if _storage_key:
+        return _storage_key
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        logger.warning("EMERGENT_LLM_KEY not set — object storage disabled")
+        return None
+    try:
+        resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": key}, timeout=30)
+        resp.raise_for_status()
+        _storage_key = resp.json()["storage_key"]
+        return _storage_key
+    except Exception as e:
+        logger.error(f"Storage init failed: {e}")
+        return None
+
+
+def put_object(path: str, data: bytes, content_type: str) -> dict:
+    key = init_storage()
+    if not key:
+        raise HTTPException(status_code=503, detail="Storage service unavailable")
+    resp = requests.put(
+        f"{STORAGE_URL}/objects/{path}",
+        headers={"X-Storage-Key": key, "Content-Type": content_type},
+        data=data,
+        timeout=120,
+    )
+    if resp.status_code == 403:
+        # storage key expired, re-init once
+        global _storage_key
+        _storage_key = None
+        key = init_storage()
+        if key:
+            resp = requests.put(
+                f"{STORAGE_URL}/objects/{path}",
+                headers={"X-Storage-Key": key, "Content-Type": content_type},
+                data=data,
+                timeout=120,
+            )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def get_object(path: str) -> tuple:
+    key = init_storage()
+    if not key:
+        raise HTTPException(status_code=503, detail="Storage service unavailable")
+    resp = requests.get(
+        f"{STORAGE_URL}/objects/{path}",
+        headers={"X-Storage-Key": key},
+        timeout=60,
+    )
+    resp.raise_for_status()
+    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
+
+
+@api.post("/upload")
+async def upload_file(
+    file: UploadFile = File(...),
+    kind: str = Query("resume"),
+    user: dict = Depends(get_current_user),
+):
+    filename = file.filename or "file.bin"
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext not in ALLOWED_EXTS:
+        raise HTTPException(status_code=400, detail=f"File type .{ext} not allowed. Allowed: {sorted(ALLOWED_EXTS)}")
+    content_type = MIME_TYPES.get(ext, "application/octet-stream")
+    data = await file.read()
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400, detail="File too large (max 5MB)")
+
+    uid = str(user["_id"])
+    path = f"{APP_NAME}/uploads/{uid}/{uuid.uuid4()}.{ext}"
+    try:
+        result = put_object(path, data, content_type)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Upload failed: {e}")
+        raise HTTPException(status_code=500, detail="Upload failed")
+
+    file_id = str(uuid.uuid4())
+    await db.files.insert_one({
+        "id": file_id,
+        "user_id": user["_id"],
+        "kind": kind,
+        "storage_path": result["path"],
+        "original_filename": filename,
+        "content_type": content_type,
+        "size": result.get("size", len(data)),
+        "is_deleted": False,
+        "created_at": datetime.now(timezone.utc),
+    })
+
+    file_url = f"/api/files/{file_id}"
+    # If it's a resume, update user's resume_url pointer for quick access
+    if kind == "resume":
+        await db.users.update_one({"_id": user["_id"]}, {"$set": {"resume_url": file_url, "resume_filename": filename}})
+
+    return {"id": file_id, "url": file_url, "filename": filename, "size": len(data)}
+
+
+@api.get("/files/{file_id}")
+async def download_file(file_id: str, auth: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
+    # Simple auth: accept Bearer via header OR ?auth=<token>. Files are semi-private.
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization[7:]
+    elif auth:
+        token = auth
+    # Files are accessible to any logged-in user (recruiters need to view resumes)
+    if token:
+        try:
+            jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
+        except jwt.InvalidTokenError:
+            raise HTTPException(status_code=401, detail="Invalid token")
+
+    rec = await db.files.find_one({"id": file_id, "is_deleted": False})
+    if not rec:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    try:
+        data, content_type = get_object(rec["storage_path"])
+    except Exception as e:
+        logger.error(f"Download failed: {e}")
+        raise HTTPException(status_code=500, detail="Download failed")
+
+    return Response(
+        content=data,
+        media_type=rec.get("content_type", content_type),
+        headers={"Content-Disposition": f'inline; filename="{rec.get("original_filename", "file")}"'},
+    )
+
+
+# --- AI Job Matching (Emergent LLM key + Claude Sonnet) ---
+_ai_cache: dict = {}  # session_id -> (timestamp, result)
+_AI_CACHE_TTL_SEC = 300  # 5 minutes
+
+
+async def _run_claude(system: str, user_text: str) -> str:
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        raise HTTPException(status_code=503, detail="AI service unavailable")
+
+    session_id = f"skilleraa-{uuid.uuid4()}"
+    chat = LlmChat(api_key=key, session_id=session_id, system_message=system).with_model(
+        "anthropic", "claude-sonnet-4-6"
+    )
+    try:
+        # send_message is fine here — we need structured JSON, not user-facing streaming
+        response = await chat.send_message(UserMessage(text=user_text))
+        return response if isinstance(response, str) else str(response)
+    except Exception as e:
+        logger.error(f"AI call failed: {e}")
+        raise HTTPException(status_code=502, detail="AI matching failed")
+
+
+def _parse_json_from_llm(text: str) -> list:
+    # Try direct parse, then extract from ```json blocks or first [ ... ] block
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.strip("`")
+        if text.lower().startswith("json"):
+            text = text[4:].strip()
+    start = text.find("[")
+    end = text.rfind("]")
+    if start != -1 and end != -1:
+        text = text[start : end + 1]
+    try:
+        return json.loads(text)
+    except Exception:
+        logger.error(f"Failed to parse LLM JSON: {text[:400]}")
+        return []
+
+
+@api.post("/ai/match-jobs")
+async def ai_match_jobs(user: dict = Depends(get_current_user)):
+    """Match top 5 open jobs to the current student's profile."""
+    await require_role(user, "student")
+
+    cache_key = f"student:{user['_id']}"
+    now = datetime.now(timezone.utc).timestamp()
+    cached = _ai_cache.get(cache_key)
+    if cached and now - cached[0] < _AI_CACHE_TTL_SEC:
+        return cached[1]
+
+    profile = {
+        "headline": user.get("headline", ""),
+        "bio": user.get("bio", ""),
+        "skills": user.get("skills", []),
+        "education": user.get("education", ""),
+    }
+    if not profile["skills"] and not profile["headline"] and not profile["bio"]:
+        raise HTTPException(status_code=400, detail="Complete your profile (skills, headline, bio) to get AI matches")
+
+    jobs_docs = await db.jobs.find({"status": "open"}).sort("created_at", -1).limit(30).to_list(30)
+    if not jobs_docs:
+        return {"matches": []}
+
+    jobs_min = [
+        {
+            "id": str(j["_id"]),
+            "title": j.get("title", ""),
+            "category": j.get("category", ""),
+            "skills": j.get("skills", []),
+            "experience": j.get("experience", ""),
+            "description": (j.get("description", "") or "")[:400],
+        }
+        for j in jobs_docs
+    ]
+
+    system = (
+        "You are an expert freelance job matcher. Given a student profile and a list of open jobs, "
+        "rank the top 5 best-fitting jobs. Respond with ONLY valid JSON — no prose, no markdown fences. "
+        'Format: [{"job_id": "<id>", "score": 0-100, "reason": "<one short sentence>"}, ...] '
+        "sorted by score descending, max 5 items."
+    )
+    user_text = json.dumps({"student": profile, "jobs": jobs_min})
+
+    raw = await _run_claude(system, user_text)
+    ranked = _parse_json_from_llm(raw)
+
+    jobs_map = {str(j["_id"]): j for j in jobs_docs}
+    client_ids = list({j.get("client_id") for j in jobs_docs if j.get("client_id")})
+    clients = {}
+    if client_ids:
+        async for c in db.users.find({"_id": {"$in": client_ids}}):
+            clients[str(c["_id"])] = c
+
+    matches = []
+    for item in ranked[:5]:
+        jid = item.get("job_id")
+        job = jobs_map.get(jid)
+        if not job:
+            continue
+        matches.append({
+            "job": serialize_job(job, clients.get(str(job.get("client_id")))),
+            "score": int(item.get("score", 0)),
+            "reason": item.get("reason", ""),
+        })
+
+    result = {"matches": matches}
+    _ai_cache[cache_key] = (now, result)
+    return result
+
+
+@api.post("/ai/match-applicants/{job_id}")
+async def ai_match_applicants(job_id: str, user: dict = Depends(get_current_user)):
+    """For a client's job, rank the top applicants."""
+    await require_role(user, "client")
+    try:
+        job = await db.jobs.find_one({"_id": ObjectId(job_id)})
+    except Exception:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if not job or job.get("client_id") != user["_id"]:
+        raise HTTPException(status_code=403, detail="Not the owner")
+
+    cache_key = f"job:{job_id}"
+    now = datetime.now(timezone.utc).timestamp()
+    cached = _ai_cache.get(cache_key)
+    if cached and now - cached[0] < _AI_CACHE_TTL_SEC:
+        return cached[1]
+
+    apps = await db.applications.find({"job_id": job["_id"]}).to_list(100)
+    if not apps:
+        return {"matches": []}
+
+    student_ids = [a["student_id"] for a in apps]
+    students = {}
+    async for s in db.users.find({"_id": {"$in": student_ids}}):
+        students[str(s["_id"])] = s
+
+    applicants_min = [
+        {
+            "application_id": str(a["_id"]),
+            "student_id": str(a["student_id"]),
+            "name": students.get(str(a["student_id"]), {}).get("name", ""),
+            "headline": students.get(str(a["student_id"]), {}).get("headline", ""),
+            "skills": students.get(str(a["student_id"]), {}).get("skills", []),
+            "cover_letter": (a.get("cover_letter", "") or "")[:400],
+        }
+        for a in apps
+    ]
+
+    job_min = {
+        "title": job.get("title", ""),
+        "description": (job.get("description", "") or "")[:600],
+        "skills": job.get("skills", []),
+        "experience": job.get("experience", ""),
+    }
+
+    system = (
+        "You are an expert recruiting assistant. Given a job and its applicants, rank the top 5 best-fit applicants. "
+        "Respond with ONLY valid JSON — no prose, no markdown fences. "
+        'Format: [{"application_id": "<id>", "score": 0-100, "reason": "<one short sentence>"}, ...] '
+        "sorted by score descending, max 5 items."
+    )
+    user_text = json.dumps({"job": job_min, "applicants": applicants_min})
+    raw = await _run_claude(system, user_text)
+    ranked = _parse_json_from_llm(raw)
+
+    apps_map = {str(a["_id"]): a for a in apps}
+    matches = []
+    for item in ranked[:5]:
+        aid = item.get("application_id")
+        a = apps_map.get(aid)
+        if not a:
+            continue
+        matches.append({
+            "application": serialize_application(a, job, students.get(str(a["student_id"])), user),
+            "score": int(item.get("score", 0)),
+            "reason": item.get("reason", ""),
+        })
+
+    result = {"matches": matches}
+    _ai_cache[cache_key] = (now, result)
+    return result
+
+
+
+
 # --- Seed ---
 async def seed_data():
     # Users
@@ -789,6 +1205,13 @@ async def on_startup():
     await db.jobs.create_index([("status", 1), ("created_at", -1)])
     await db.applications.create_index([("student_id", 1), ("job_id", 1)], unique=True)
     await db.saved_jobs.create_index([("student_id", 1), ("job_id", 1)], unique=True)
+    await db.password_reset_tokens.create_index("expires_at", expireAfterSeconds=0)
+    await db.password_reset_tokens.create_index("token", unique=True)
+    await db.files.create_index("id", unique=True)
+    try:
+        init_storage()
+    except Exception as e:
+        logger.warning(f"Storage init at startup failed (non-fatal): {e}")
     await seed_data()
 
 

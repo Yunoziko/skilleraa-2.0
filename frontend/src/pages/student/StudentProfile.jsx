@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import DashboardShell from "@/components/layout/DashboardShell";
+import ResumeUpload from "@/components/ResumeUpload";
 import { useAuth } from "@/context/AuthContext";
 import api from "@/lib/api";
 import { toast } from "sonner";
@@ -83,7 +84,11 @@ export default function StudentProfile() {
           <Field label="Skills (comma separated)" value={form.skills} onChange={(v) => setForm({ ...form, skills: v })} placeholder="React, Figma, Tailwind" testid="profile-skills" />
           <Field label="Education" value={form.education} onChange={(v) => setForm({ ...form, education: v })} placeholder="B.Tech, IIT Roorkee" testid="profile-education" />
           <Field label="Portfolio URL" value={form.portfolio_url} onChange={(v) => setForm({ ...form, portfolio_url: v })} placeholder="https://…" testid="profile-portfolio" />
-          <Field label="Resume URL" value={form.resume_url} onChange={(v) => setForm({ ...form, resume_url: v })} placeholder="https://…" testid="profile-resume" />
+          <ResumeUpload
+            currentUrl={user?.resume_url}
+            currentName={user?.resume_filename}
+            onUploaded={() => refresh()}
+          />
 
           <button
             type="submit"

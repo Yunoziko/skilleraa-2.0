@@ -3,7 +3,27 @@ import { useParams, Link } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import api from "@/lib/api";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, FileText } from "lucide-react";
+
+function ResumeLink({ url, filename }) {
+  const backend = process.env.REACT_APP_BACKEND_URL;
+  const token = typeof window !== "undefined" ? localStorage.getItem("skl_token") : null;
+  const href = `${backend}${url}${token ? `?auth=${token}` : ""}`;
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-full border skl-border hover:bg-neutral-50 transition"
+      data-testid="public-profile-resume"
+    >
+      <FileText size={14} />
+      <span className="text-sm">{filename || "View resume"}</span>
+      <ExternalLink size={12} />
+    </a>
+  );
+}
+
 
 export default function PublicProfile() {
   const { id } = useParams();
@@ -87,6 +107,13 @@ export default function PublicProfile() {
             <a href={profile.portfolio_url} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-neutral-700 hover:text-black underline underline-offset-4">
               {profile.portfolio_url} <ExternalLink size={12} />
             </a>
+          </div>
+        )}
+
+        {profile.resume_url && (
+          <div className="mt-10 border-t skl-border pt-8">
+            <div className="text-xs uppercase tracking-[0.18em] text-neutral-500 font-semibold">Resume</div>
+            <ResumeLink url={profile.resume_url} filename={profile.resume_filename} />
           </div>
         )}
 
