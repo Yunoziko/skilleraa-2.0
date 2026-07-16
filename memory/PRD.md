@@ -42,6 +42,13 @@ Design and build a modern, premium, minimal black-and-white freelancing marketpl
 - ✅ Seed data: 8 jobs, 3 clients + 1 student demo user
 - ✅ Testing agent: 19/19 backend pytest cases pass, all frontend Playwright flows pass
 
+## P1 Delivered (Feb 2026 — iteration 2)
+- ✅ **Refresh-token endpoint** (`POST /api/auth/refresh`) — issues new access + refresh pair; axios interceptor auto-refreshes on 401, retries the original request; refresh tokens stored in `localStorage['skl_refresh']` + httpOnly cookie fallback
+- ✅ **Password reset flow** — `POST /api/auth/forgot-password` (email-enumeration safe) + `POST /api/auth/reset-password` with TTL-indexed tokens (1h expiry); pages `/forgot-password` and `/reset-password?token=...` on the frontend
+- ✅ **File upload for resumes** — Emergent object storage; `POST /api/upload?kind=resume` (multipart, 5 MB, PDF/PNG/JPG only), `GET /api/files/{id}` serves with correct MIME; user's `resume_url` auto-updated; UI on student profile & viewable on public profile
+- ✅ **AI job matching** — Claude Sonnet 4.6 via Emergent LLM key + `emergentintegrations`; `POST /api/ai/match-jobs` returns top-5 fits with score + one-sentence rationale for students; `POST /api/ai/match-applicants/{job_id}` for clients; 5-minute in-process cache; UI panels on student dashboard and client applicants page
+- ✅ Testing agent iteration 2: 34/34 backend cases pass, all frontend P1 flows pass
+
 ## Test Credentials
 See `/app/memory/test_credentials.md`.
 
