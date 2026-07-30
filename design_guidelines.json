@@ -1,0 +1,170 @@
+{
+  "project_name": "Skilleraa",
+  "design_philosophy": "Strict monochrome minimalism. Vercel meets Linear. Pure high-contrast structure focusing on negative space, typography, and crisp borders. Zero gradients. Zero colorful icons. Every pixel must have purpose.",
+  "theme_strategy": "Pure Black & White. Light mode default for trust and clarity, with seamless Dark mode for professional aesthetics.",
+  "typography": {
+    "headings": {
+      "font_family": "Cabinet Grotesk",
+      "import_url": "https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,500,700,400,900&display=swap",
+      "classes": "font-sans tracking-tighter font-medium text-black dark:text-white",
+      "rules": "Use Cabinet Grotesk for all Headings (H1-H4). Never use Inter for headings. Ensure tight letter spacing (-0.02em to -0.04em)."
+    },
+    "body": {
+      "font_family": "Inter",
+      "import_url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap",
+      "classes": "font-sans leading-relaxed tracking-normal text-gray-600 dark:text-gray-400",
+      "rules": "Use Inter exclusively for body text, inputs, labels, and data tables to maximize legibility."
+    },
+    "scales": {
+      "h1": "text-5xl md:text-6xl tracking-tighter leading-tight",
+      "h2": "text-3xl md:text-4xl tracking-tight leading-tight",
+      "h3": "text-xl md:text-2xl tracking-tight",
+      "h4": "text-lg font-semibold",
+      "body": "text-base",
+      "small": "text-sm text-gray-500",
+      "overline": "text-xs uppercase tracking-[0.2em] font-semibold"
+    }
+  },
+  "colors": {
+    "light": {
+      "background": "#FFFFFF",
+      "surface": "#FAFAFA",
+      "surface_hover": "#F4F4F5",
+      "border": "#E5E5E5",
+      "text_primary": "#000000",
+      "text_secondary": "#666666",
+      "text_tertiary": "#999999",
+      "action_primary": "#000000",
+      "action_primary_text": "#FFFFFF"
+    },
+    "dark": {
+      "background": "#000000",
+      "surface": "#0A0A0A",
+      "surface_hover": "#111111",
+      "border": "#222222",
+      "text_primary": "#FFFFFF",
+      "text_secondary": "#A1A1AA",
+      "text_tertiary": "#71717A",
+      "action_primary": "#FFFFFF",
+      "action_primary_text": "#000000"
+    },
+    "rules": "Strict adherence to monochrome. DO NOT use colored semantic states (no green for success, no red for error). Use bold text, icons, or subtle borders to indicate state instead."
+  },
+  "visual_enhancers": {
+    "corners": {
+      "default": "rounded-2xl (16px)",
+      "inner": "rounded-xl (12px)",
+      "small": "rounded-lg (8px)",
+      "buttons": "rounded-full (pill-shape) or rounded-lg depending on context (prefer pill for landing, lg for dashboard)"
+    },
+    "borders": {
+      "default": "border border-[#E5E5E5] dark:border-[#222222]",
+      "thick": "border-2 border-black dark:border-white"
+    },
+    "shadows": {
+      "card": "shadow-[0_2px_8px_rgba(0,0,0,0.04)]",
+      "hover": "shadow-[0_8px_24px_rgba(0,0,0,0.08)]",
+      "dropdown": "shadow-[0_12px_32px_rgba(0,0,0,0.12)]",
+      "rules": "Shadows must be barely visible. Rely primarily on borders to define depth."
+    },
+    "surfaces": {
+      "glass": "bg-white/70 dark:bg-black/70 backdrop-blur-xl border border-white/20 dark:border-white/10"
+    }
+  },
+  "layouts": {
+    "landing": {
+      "hero": "Massive typography, centered or sharp left-aligned. High use of negative space (py-32). Include a floating Dashboard mockup with glassmorphism overlapping the bottom.",
+      "features": "Bento Grid (grid-cols-1 md:grid-cols-3 lg:grid-cols-4). Tight gaps (gap-4 or gap-6).",
+      "spacing": "Generous (py-24, px-8)."
+    },
+    "dashboards": {
+      "shell": "Sidebar navigation (w-64) + Main content area. Top header for breadcrumbs and user actions.",
+      "content": "Max-width containers (max-w-7xl). Dense data layout with generous padding within cards.",
+      "grid": "High density grid for stats and job lists. Cards should have h-full to match neighbors."
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-black text-white hover:bg-black/90 dark:bg-white dark:text-black dark:hover:bg-white/90 transition-transform active:scale-95 rounded-full px-6 py-2.5 font-medium",
+      "secondary": "bg-transparent text-black dark:text-white border border-[#E5E5E5] dark:border-[#222222] hover:bg-gray-50 dark:hover:bg-zinc-900 transition-colors rounded-full px-6 py-2.5 font-medium",
+      "ghost": "bg-transparent text-gray-600 hover:text-black hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-zinc-900 rounded-lg px-4 py-2"
+    },
+    "cards": {
+      "base": "bg-white dark:bg-[#0A0A0A] border border-[#E5E5E5] dark:border-[#222222] rounded-2xl p-6 transition-all hover:shadow-[0_8px_24px_rgba(0,0,0,0.04)]",
+      "job_card": "Flex col layout. Top: Company logo (monochrome) + Job Title. Middle: Pill badges for Skills/Remote/Budget. Bottom: Post date + Apply CTA. Actionable via entire card wrapping."
+    },
+    "badges": {
+      "default": "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-zinc-800 dark:text-gray-200 border border-transparent",
+      "outline": "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-transparent text-black dark:text-white border border-[#E5E5E5] dark:border-[#222222]"
+    },
+    "inputs": {
+      "default": "bg-transparent border border-[#E5E5E5] dark:border-[#222222] rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white transition-all w-full text-sm",
+      "search": "Add subtle left icon (search). Same styling as default."
+    }
+  },
+  "motion": {
+    "library": "framer-motion",
+    "hover": "Scale down slightly (scale: 0.98) or lift up (y: -4) depending on component size. Quick spring physics.",
+    "page_transitions": "Fade in and slight upward translation (y: 10 to 0, opacity: 0 to 1, duration: 0.4s).",
+    "lists": "Staggered entrance animations for Job lists and features."
+  },
+  "images": {
+    "instruction": "All images MUST be forced into monochrome using CSS if not already black and white (e.g., filter: grayscale(100%) contrast(120%)).",
+    "hero_mockup_bg": [
+      {
+        "url": "https://images.unsplash.com/photo-1673706894657-8cb2c023e4c4",
+        "description": "Minimal monochrome startup room (use for decorative background sections or subtle parallax)"
+      }
+    ],
+    "avatars": [
+      {
+        "url": "https://images.unsplash.com/photo-1772987292949-4b1bdc01a612",
+        "description": "Professional female student/freelancer avatar"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1558730234-d8b2281b0d00",
+        "description": "Professional male student/freelancer avatar"
+      },
+      {
+        "url": "https://images.pexels.com/photos/19172956/pexels-photo-19172956.jpeg",
+        "description": "Client/Founder avatar"
+      }
+    ],
+    "company_logos": [
+      {
+        "url": "https://images.unsplash.com/photo-1638864616266-c390568f9092",
+        "description": "Abstract monochrome logo 1 (Use in job cards)"
+      },
+      {
+        "url": "https://images.pexels.com/photos/4252899/pexels-photo-4252899.jpeg",
+        "description": "Abstract monochrome logo 2 (Use in trusted-by section)"
+      }
+    ]
+  },
+  "accessibility": {
+    "contrast": "Ensure pure black/white combinations meet APCA and WCAG AAA standards.",
+    "focus": "All interactive elements MUST have a visible focus ring (`focus:ring-2 focus:ring-black dark:focus:ring-white focus:outline-none focus:ring-offset-2 dark:focus:ring-offset-black`).",
+    "motion": "Respect prefers-reduced-motion for all framer-motion animations.",
+    "testing": "All buttons, inputs, links, and key elements MUST include `data-testid` attributes (e.g., `data-testid=\"job-apply-button\"`)."
+  },
+  "instructions_to_main_agent": [
+    "Load Cabinet Grotesk from Fontshare and Inter from Google Fonts via <link> tags in the HTML head.",
+    "Apply `font-sans` globally but override Headings (h1, h2, h3, h4) with Cabinet Grotesk.",
+    "Enforce strict black and white styling. Do not introduce grays darker than #666 unless it's for text.",
+    "Ensure the header is sticky with a glassmorphism effect (backdrop-blur).",
+    "Use Phosphor Icons (or Lucide) and ensure all icons are strictly monochrome. NO colorful icons.",
+    "In the landing page, create a striking 'Trusted By' section using grayscale logos with high spacing.",
+    "Implement the filtering system for Job Listings using sleek pill-shaped toggle buttons instead of standard checkboxes.",
+    "Ensure all Shadcn components (if used) have their border radiuses and border colors overridden to match the 12px-16px `#E5E5E5` styling.",
+    "Use `framer-motion` for a premium feel on page load and component mounting. Add hover scaling to job cards."
+  ],
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "Do not center-align the app container. Preserve standard top-to-bottom, left-to-right reading flows.",
+    "Use 2x-3x more spacing (padding/margins) than typical defaults. Embrace whitespace as a premium design element.",
+    "Never use generic default gradients. This project specifically FORBIDS gradients.",
+    "Avoid AI slop aesthetics: No generic rounded colored blobs, no floating isometric illustrations. Stick strictly to typographic hierarchy and structural borders.",
+    "Include `data-testid` attributes on every interactive element for testing.",
+    "For the hero dashboard mockup, build a miniature UI using HTML/Tailwind rather than an actual image, layered with absolute positioning and soft shadows.",
+    "Toasts must use `sonner` styled with pure black background, white text, and sharp borders."
+  ]
+}

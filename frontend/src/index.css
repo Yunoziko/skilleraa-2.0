@@ -1,0 +1,142 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    --skl-bg: #ffffff;
+    --skl-surface: #fafafa;
+    --skl-surface-hover: #f4f4f5;
+    --skl-border: #e5e5e5;
+    --skl-border-strong: #d4d4d4;
+    --skl-text: #000000;
+    --skl-text-2: #666666;
+    --skl-text-3: #999999;
+}
+
+@layer base {
+    :root {
+        --background: 0 0% 100%;
+        --foreground: 0 0% 3.9%;
+        --card: 0 0% 100%;
+        --card-foreground: 0 0% 3.9%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 0 0% 3.9%;
+        --primary: 0 0% 9%;
+        --primary-foreground: 0 0% 98%;
+        --secondary: 0 0% 96.1%;
+        --secondary-foreground: 0 0% 9%;
+        --muted: 0 0% 96.1%;
+        --muted-foreground: 0 0% 45.1%;
+        --accent: 0 0% 96.1%;
+        --accent-foreground: 0 0% 9%;
+        --destructive: 0 0% 9%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 0 0% 89.8%;
+        --input: 0 0% 89.8%;
+        --ring: 0 0% 3.9%;
+        --radius: 0.75rem;
+    }
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+    html,
+    body {
+        margin: 0;
+        background: var(--skl-bg);
+        color: var(--skl-text);
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+            sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        font-feature-settings:
+            "cv02", "cv03", "cv04", "cv11";
+    }
+    ::selection {
+        background: #000;
+        color: #fff;
+    }
+}
+
+@layer utilities {
+    .font-display {
+        font-family:
+            "Cabinet Grotesk", "Inter", -apple-system, BlinkMacSystemFont,
+            sans-serif;
+        letter-spacing: -0.02em;
+    }
+    .font-mono {
+        font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+    }
+    .skl-border {
+        border-color: var(--skl-border);
+    }
+    .skl-hairline {
+        border: 1px solid var(--skl-border);
+    }
+    .noise-bg {
+        background-image:
+            radial-gradient(
+                circle at 25% 15%,
+                rgba(0, 0, 0, 0.02) 0,
+                transparent 40%
+            ),
+            radial-gradient(
+                circle at 75% 85%,
+                rgba(0, 0, 0, 0.02) 0,
+                transparent 40%
+            );
+    }
+    .dotgrid {
+        background-image: radial-gradient(
+            circle,
+            rgba(0, 0, 0, 0.08) 1px,
+            transparent 1px
+        );
+        background-size: 24px 24px;
+    }
+    .marquee {
+        animation: marquee 40s linear infinite;
+    }
+    @keyframes marquee {
+        from {
+            transform: translateX(0);
+        }
+        to {
+            transform: translateX(-50%);
+        }
+    }
+    .skl-shadow {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    }
+    .skl-shadow-lg {
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+    }
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+    .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+}
+
+/* Custom focus ring */
+:focus-visible {
+    outline: 2px solid #000;
+    outline-offset: 2px;
+    border-radius: 6px;
+}
+button:focus-visible,
+a:focus-visible {
+    outline-offset: 3px;
+}
+
+/* Sonner toast — pure B&W */
+[data-sonner-toaster] {
+    --normal-bg: #000;
+    --normal-text: #fff;
+    --normal-border: #000;
+}

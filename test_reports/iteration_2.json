@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 2 — tested all P1 features: refresh token, forgot/reset password, resume upload (Emergent objstore), and AI matching (Claude Sonnet). 34/34 pytest backend cases passed sequentially (19 regression + 15 new P1). Frontend Playwright flows for /forgot-password, /reset-password, /student AI Matches panel, /student/profile resume upload, /client/applicants AI ranking all pass. Only caveat: when run under pytest-xdist parallel mode, the reset-password test races with concurrent student-login calls (transient) — not a product bug; passes when run sequentially or in isolation.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "N/A", "issue": "P1 tests are not thread-safe against pytest-xdist parallel workers because they mutate the shared student's password. Consider annotating with pytest-xdist grouping (xdist_group) or running the reset-password test in a dedicated ephemeral user."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_p1.py",
+    "/app/test_reports/pytest/all_results.xml",
+    "/app/test_reports/pytest/p1_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py has grown to 1240 lines — auth, files, AI, seed all in one file. Suggest splitting into modules (auth.py, files.py, ai.py, seed.py).",
+    "_ai_cache is an in-process dict — will not survive worker restarts and is not shared across replicas. Fine for demo, but move to Mongo/Redis for production.",
+    "/api/files/{id} accepts ANY valid access-token JWT to view files; no ACL check whether the requester is the owner or a client viewing a shortlisted applicant. Acceptable per the code comment ('recruiters need to view resumes'), but worth documenting/tightening later.",
+    "@app.on_event startup/shutdown deprecated in FastAPI — migrate to lifespan.",
+    "CORS still uses allow_origins=['*'] with allow_credentials=True + allow_origin_regex='.*'; works via reflection but weakens same-origin credential intent.",
+    "seed_data writes /app/memory/test_credentials.md on every startup — could be gated by an idempotency flag."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_p1.py (new)"
+  ],
+  "success_rate": {"backend": "100% (34/34 sequential)", "frontend": "100% of tested P1 flows"},
+  "test_credentials": "student@skilleraa.com / Student@1234 ; client@skilleraa.com / Client@1234",
+  "seed_data_creation": "Tests create ephemeral qa+*@test.com users; reset-password test resets & restores demo student password to Student@1234.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Two backend test files now live under /app/backend/tests/: backend_test.py (iteration-1 regression, 19 cases) and test_p1.py (P1 additions, 15 cases). Run with `python -m pytest backend/tests/ -o addopts='' --junitxml=...` sequentially — the shared xdist workers race on demo-student password reset. AI-matching tests make real Claude Sonnet calls (~3–10s each) and cost credits. Frontend testids verified: forgot-form, forgot-email-input, forgot-submit-btn, forgot-dev-link, reset-form, reset-password-input, reset-confirm-input, reset-submit-btn, ai-run-btn, ai-matches-panel, ai-match-<id>, ai-rank-panel, ai-job-select (native <select>), ai-rank-btn, resume-upload-btn (empty state only), resume-current, resume-replace-btn, resume-file-input, login-forgot-link, login-demo-student, login-demo-client, logout-btn."
+}
