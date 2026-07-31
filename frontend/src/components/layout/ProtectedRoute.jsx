@@ -1,16 +1,12 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { isSupabaseConfigured } from "@/lib/supabase";
 
 /**
- * While auth is paused (Supabase placeholders), allow dashboard routes so the
- * Applications module can be exercised with local mock storage.
- * When real Supabase keys are set, normal auth gating applies unchanged.
+ * Requires a Supabase session. Unauthenticated users are sent to /login.
  */
 export default function ProtectedRoute({ children, role }) {
   const { user, loading } = useAuth();
   const location = useLocation();
-  const offlineDemo = !isSupabaseConfigured;
 
   if (loading || user === null) {
     return (
@@ -21,9 +17,6 @@ export default function ProtectedRoute({ children, role }) {
   }
 
   if (user === false) {
-    if (offlineDemo) {
-      return children;
-    }
     return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
 

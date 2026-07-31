@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { Toaster } from "sonner";
@@ -49,10 +49,16 @@ function AuthCallback() {
   const { handleAuthCallback } = useAuth();
   const nav = useNavigate();
   const [error, setError] = useState("");
+  const ranRef = useRef(false);
 
   useEffect(() => {
+    if (ranRef.current) return undefined;
+    ranRef.current = true;
+
+    let cancelled = false;
     (async () => {
       const res = await handleAuthCallback();
+      if (cancelled) return;
       if (!res.ok) {
         setError(res.error || "Authentication failed");
         return;
@@ -60,6 +66,10 @@ function AuthCallback() {
       const role = res.user?.role || "student";
       nav(role === "client" ? "/client" : "/student", { replace: true });
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [handleAuthCallback, nav]);
 
   if (error) {

@@ -10,6 +10,9 @@ import {
   getPendingVerifyEmail,
   clearPendingVerifyEmail,
   clearAuthEphemeralState,
+  mapSupabaseUser,
+  resolveAuthRole,
+  completeAuthRedirect,
   AUTH_CALLBACK_PATH,
   RESET_PASSWORD_PATH,
 } from "@/lib/supabase";
@@ -26,29 +29,33 @@ function notConfiguredError() {
   return {
     ok: false,
     error:
-      "Supabase is not configured. Replace PLACEHOLDER values in frontend/.env and restart the app.",
+      "Supabase is not configured. Set REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY in frontend/.env and restart the app.",
   };
 }
 
-async function syncProfile({ name, role } = {}) {
-  const body = {};
-  if (name) body.name = name;
-  if (role === "student" || role === "client") body.role = role;
-  const { data } = await api.post("/auth/sync", body);
-  return data;
+/** Optional FastAPI profile sync — never blocks Supabase auth if backend is down. */
+async function trySyncProfile({ name, role } = {}) {
+  try {
+    const body = {};
+    if (name) body.name = name;
+    if (role === "student" || role === "client") body.role = role;
+    const { data } = await api.post("/auth/sync", body);
+    return data || null;
+  } catch {
+    return null;
+  }
 }
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(null); // null=loading, false=logged out, object=logged in
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  const syncedAccessTokenRef = useRef(null);
-  const syncInFlightRef = useRef(null);
+  const appliedTokenRef = useRef(null);
 
   const applySession = useCallback(async (nextSession, { name, role, force = false } = {}) => {
     if (!nextSession?.access_token) {
       clearToken();
-      syncedAccessTokenRef.current = null;
+      appliedTokenRef.current = null;
       setSession(null);
       setUser(false);
       return null;
@@ -57,47 +64,65 @@ export function AuthProvider({ children }) {
     saveTokens(nextSession.access_token, nextSession.refresh_token);
     setSession(nextSession);
 
-    // Skip duplicate profile sync for the same access token (login + onAuthStateChange race)
-    if (!force && !name && !role && syncedAccessTokenRef.current === nextSession.access_token) {
+    if (!force && !name && !role && appliedTokenRef.current === nextSession.access_token) {
       return undefined;
     }
 
-    if (syncInFlightRef.current) {
-      return syncInFlightRef.current;
+    const storedPending = consumePendingRole(null);
+    const roleOverride =
+      role === "client" || role === "student"
+        ? role
+        : storedPending === "client" || storedPending === "student"
+          ? storedPending
+          : null;
+
+    let sbUser = nextSession.user;
+
+    // Persist role/name into user_metadata when explicitly provided (signup / OAuth pending)
+    if (supabase && (roleOverride || name)) {
+      try {
+        const meta = sbUser?.user_metadata || {};
+        const needsRole = roleOverride && meta.role !== roleOverride;
+        const trimmedName = name?.trim();
+        const needsName = trimmedName && meta.name !== trimmedName;
+        if (needsRole || needsName) {
+          const { data: updated, error } = await supabase.auth.updateUser({
+            data: {
+              ...(needsName ? { name: trimmedName } : {}),
+              ...(needsRole ? { role: roleOverride, intended_role: roleOverride } : {}),
+            },
+          });
+          if (!error && updated?.user) sbUser = updated.user;
+        }
+      } catch {
+        // keep session.user
+      }
     }
 
-    const pendingRole = role || consumePendingRole(null);
-    const work = (async () => {
-      try {
-        const profile = await syncProfile({
-          name,
-          role: pendingRole || undefined,
-        });
-        syncedAccessTokenRef.current = nextSession.access_token;
-        clearPendingVerifyEmail();
-        setUser(profile);
-        return profile;
-      } catch (e) {
-        const status = e?.response?.status;
-        if (status === 401 || status === 403) {
-          clearToken();
-          syncedAccessTokenRef.current = null;
-          setSession(null);
-          setUser(false);
-        } else {
-          // Network / backend down — keep Supabase session tokens, mark unauthenticated for routes
-          setUser(false);
-        }
-        throw e;
-      } finally {
-        if (syncInFlightRef.current === work) {
-          syncInFlightRef.current = null;
-        }
-      }
-    })();
+    let profile = mapSupabaseUser(sbUser, {
+      name: name || undefined,
+      role: roleOverride || undefined,
+    });
 
-    syncInFlightRef.current = work;
-    return work;
+    // Soft-merge backend profile when available (auth still works if FastAPI is down)
+    const backendProfile = await trySyncProfile({
+      name: profile?.name,
+      role: profile?.role,
+    });
+    if (backendProfile && typeof backendProfile === "object") {
+      profile = {
+        ...profile,
+        ...backendProfile,
+        role: resolveAuthRole(backendProfile.role, profile?.role),
+        name: backendProfile.name || profile?.name,
+        id: backendProfile.id || profile?.id,
+      };
+    }
+
+    appliedTokenRef.current = nextSession.access_token;
+    clearPendingVerifyEmail();
+    setUser(profile);
+    return profile;
   }, []);
 
   const refresh = useCallback(async () => {
@@ -110,7 +135,7 @@ export function AuthProvider({ children }) {
       if (error) throw error;
       if (!data.session) {
         clearToken();
-        syncedAccessTokenRef.current = null;
+        appliedTokenRef.current = null;
         setSession(null);
         setUser(false);
         return null;
@@ -144,7 +169,7 @@ export function AuthProvider({ children }) {
       if (event === "SIGNED_OUT") {
         clearToken();
         clearAuthEphemeralState();
-        syncedAccessTokenRef.current = null;
+        appliedTokenRef.current = null;
         setSession(null);
         setUser(false);
         return;
@@ -156,7 +181,7 @@ export function AuthProvider({ children }) {
         return;
       }
 
-      // Recovery session is owned by ResetPassword — keep tokens, do not sync profile yet
+      // Recovery session is owned by ResetPassword — keep tokens, do not map profile yet
       if (event === "PASSWORD_RECOVERY" && nextSession) {
         saveTokens(nextSession.access_token, nextSession.refresh_token);
         setSession(nextSession);
@@ -166,11 +191,11 @@ export function AuthProvider({ children }) {
       if (nextSession) {
         saveTokens(nextSession.access_token, nextSession.refresh_token);
         setSession(nextSession);
-        if (event === "SIGNED_IN" || event === "USER_UPDATED") {
+        if (event === "SIGNED_IN" || event === "USER_UPDATED" || event === "INITIAL_SESSION") {
           try {
             await applySession(nextSession);
           } catch {
-            // callers surface errors; boot refresh retries via ProtectedRoute unauth
+            // boot refresh / login callers surface errors
           }
         }
       }
@@ -198,11 +223,12 @@ export function AuthProvider({ children }) {
         return { ok: false, error: msg, needsVerification };
       }
       if (data.user && !data.user.email_confirmed_at) {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: "local" });
         setPendingVerifyEmail(normalized);
         return {
           ok: false,
-          error: "Please verify your email before logging in. Check your inbox for the confirmation link.",
+          error:
+            "Please verify your email before logging in. Check your inbox for the confirmation link.",
           needsVerification: true,
         };
       }
@@ -217,8 +243,10 @@ export function AuthProvider({ children }) {
     if (!supabase) return notConfiguredError();
     try {
       const normalized = email.trim().toLowerCase();
-      setPendingRole(role);
+      const resolvedRole = resolveAuthRole(role);
+      setPendingRole(resolvedRole);
       setPendingVerifyEmail(normalized);
+
       const { data, error } = await supabase.auth.signUp({
         email: normalized,
         password,
@@ -226,7 +254,8 @@ export function AuthProvider({ children }) {
           emailRedirectTo: getAuthRedirectUrl(AUTH_CALLBACK_PATH),
           data: {
             name: name?.trim() || "",
-            intended_role: role,
+            role: resolvedRole,
+            intended_role: resolvedRole,
           },
         },
       });
@@ -250,7 +279,11 @@ export function AuthProvider({ children }) {
         };
       }
 
-      const profile = await applySession(data.session, { name, role, force: true });
+      const profile = await applySession(data.session, {
+        name: name?.trim(),
+        role: resolvedRole,
+        force: true,
+      });
       return { ok: true, user: profile, needsVerification: false };
     } catch (e) {
       return { ok: false, error: formatApiError(e.response?.data?.detail) || authErrorMessage(e) };
@@ -265,7 +298,7 @@ export function AuthProvider({ children }) {
     }
     clearToken();
     clearAuthEphemeralState();
-    syncedAccessTokenRef.current = null;
+    appliedTokenRef.current = null;
     setSession(null);
     setUser(false);
   };
@@ -298,7 +331,6 @@ export function AuthProvider({ children }) {
       }
       const { error } = await supabase.auth.updateUser({ password });
       if (error) return { ok: false, error: authErrorMessage(error) };
-      // Force a clean login with the new password
       try {
         await supabase.auth.signOut({ scope: "local" });
       } catch {
@@ -306,7 +338,7 @@ export function AuthProvider({ children }) {
       }
       clearToken();
       clearAuthEphemeralState();
-      syncedAccessTokenRef.current = null;
+      appliedTokenRef.current = null;
       setSession(null);
       setUser(false);
       return { ok: true };
@@ -340,7 +372,7 @@ export function AuthProvider({ children }) {
   const loginWithGoogle = async (role = "student") => {
     if (!supabase) return notConfiguredError();
     try {
-      setPendingRole(role);
+      setPendingRole(resolveAuthRole(role));
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -359,38 +391,14 @@ export function AuthProvider({ children }) {
   const handleAuthCallback = useCallback(async () => {
     if (!supabase) return notConfiguredError();
     try {
-      const params = new URLSearchParams(window.location.search);
-      const oauthError = params.get("error") || params.get("error_code");
-      if (oauthError) {
-        return {
-          ok: false,
-          error: params.get("error_description") || oauthError || "Authentication failed",
-        };
+      const { session: nextSession, error } = await completeAuthRedirect(supabase);
+      if (error || !nextSession) {
+        return { ok: false, error: error || "No session found. Try signing in again." };
       }
-
-      const code = params.get("code");
-      if (code) {
-        const { data: exchanged, error: exchangeError } =
-          await supabase.auth.exchangeCodeForSession(code);
-        if (exchangeError) return { ok: false, error: authErrorMessage(exchangeError) };
-        if (exchanged?.session) {
-          const profile = await applySession(exchanged.session, { force: true });
-          return { ok: true, user: profile };
-        }
+      const profile = await applySession(nextSession, { force: true });
+      if (!profile) {
+        return { ok: false, error: "Could not restore your account. Please sign in." };
       }
-
-      // Hash-based redirects (email confirm / older flows)
-      let { data, error } = await supabase.auth.getSession();
-      if (error) return { ok: false, error: authErrorMessage(error) };
-      if (!data.session) {
-        await new Promise((r) => setTimeout(r, 300));
-        ({ data, error } = await supabase.auth.getSession());
-        if (error) return { ok: false, error: authErrorMessage(error) };
-      }
-      if (!data.session) {
-        return { ok: false, error: "No session found. Try signing in again." };
-      }
-      const profile = await applySession(data.session, { force: true });
       return { ok: true, user: profile };
     } catch (e) {
       return { ok: false, error: formatApiError(e.response?.data?.detail) || authErrorMessage(e) };
@@ -401,22 +409,15 @@ export function AuthProvider({ children }) {
   const establishRecoverySession = useCallback(async () => {
     if (!supabase) return notConfiguredError();
     try {
-      const params = new URLSearchParams(window.location.search);
-      const code = params.get("code");
-      if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error) return { ok: false, error: authErrorMessage(error) };
-      }
-      const { data, error } = await supabase.auth.getSession();
-      if (error) return { ok: false, error: authErrorMessage(error) };
-      if (!data.session) {
+      const { session: nextSession, error } = await completeAuthRedirect(supabase);
+      if (error || !nextSession) {
         return {
           ok: false,
-          error: "Reset link expired or invalid. Request a new password reset email.",
+          error: error || "Reset link expired or invalid. Request a new password reset email.",
         };
       }
-      saveTokens(data.session.access_token, data.session.refresh_token);
-      setSession(data.session);
+      saveTokens(nextSession.access_token, nextSession.refresh_token);
+      setSession(nextSession);
       return { ok: true };
     } catch (e) {
       return { ok: false, error: authErrorMessage(e) };

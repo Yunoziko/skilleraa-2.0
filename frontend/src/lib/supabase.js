@@ -18,6 +18,10 @@ export function hasRealSupabaseConfig(url = supabaseUrl, key = supabaseAnonKey) 
 
 export const isSupabaseConfigured = hasRealSupabaseConfig();
 
+/**
+ * Reusable browser Supabase client.
+ * Session is persisted in localStorage and restored on refresh.
+ */
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
@@ -25,6 +29,7 @@ export const supabase = isSupabaseConfigured
         autoRefreshToken: true,
         detectSessionInUrl: true,
         storage: typeof window !== "undefined" ? window.localStorage : undefined,
+        storageKey: "skl-supabase-auth",
       },
     })
   : null;
@@ -76,4 +81,156 @@ export function clearPendingRole() {
 export function clearAuthEphemeralState() {
   clearPendingVerifyEmail();
   clearPendingRole();
+}
+
+/** Normalize role from metadata / overrides. */
+export function resolveAuthRole(...candidates) {
+  for (const c of candidates) {
+    if (c === "client" || c === "student") return c;
+  }
+  return "student";
+}
+
+/** Map a Supabase auth user into the Skilleraa app user shape (no backend required). */
+export function mapSupabaseUser(sbUser, overrides = {}) {
+  if (!sbUser) return null;
+  const meta = sbUser.user_metadata || {};
+  const role = resolveAuthRole(overrides.role, meta.role, meta.intended_role);
+  const name = String(overrides.name || meta.name || sbUser.email?.split("@")[0] || "User").trim();
+  return {
+    id: sbUser.id,
+    email: sbUser.email || "",
+    name,
+    role,
+    avatar_letter: name.charAt(0).toUpperCase() || "U",
+    created_at: sbUser.created_at || null,
+    headline: meta.headline || "",
+    bio: meta.bio || "",
+    location: meta.location || "",
+    skills: Array.isArray(meta.skills) ? meta.skills : [],
+    portfolio_url: meta.portfolio_url || "",
+    education: meta.education || "",
+  };
+}
+
+const OTP_TYPES = new Set([
+  "signup",
+  "invite",
+  "magiclink",
+  "recovery",
+  "email_change",
+  "email",
+]);
+
+function readRedirectParams() {
+  if (typeof window === "undefined") {
+    return { search: new URLSearchParams(), hash: new URLSearchParams(), get: () => null };
+  }
+  const search = new URLSearchParams(window.location.search);
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const get = (key) => search.get(key) || hash.get(key);
+  return { search, hash, get };
+}
+
+function clearAuthParamsFromUrl() {
+  if (typeof window === "undefined") return;
+  try {
+    const url = new URL(window.location.href);
+    [
+      "code",
+      "token_hash",
+      "type",
+      "error",
+      "error_code",
+      "error_description",
+    ].forEach((k) => url.searchParams.delete(k));
+    url.hash = "";
+    window.history.replaceState(window.history.state, "", url.pathname + url.search);
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Complete email-confirm / OAuth / magic-link redirects.
+ * Handles: ?code= (PKCE), #access_token= (implicit), ?token_hash=&type= (OTP).
+ */
+export async function completeAuthRedirect(client = supabase) {
+  if (!client) {
+    return { session: null, error: "Supabase is not configured." };
+  }
+
+  // Let detectSessionInUrl finish before we read/exchange params.
+  if (typeof client.auth.initialize === "function") {
+    try {
+      await client.auth.initialize();
+    } catch {
+      // continue — we still try manual recovery below
+    }
+  }
+
+  const { get } = readRedirectParams();
+
+  const redirectError = get("error_description") || get("error");
+  if (redirectError) {
+    return { session: null, error: redirectError };
+  }
+
+  // 1) token_hash (common for email confirmation / resend links)
+  const tokenHash = get("token_hash");
+  const rawType = get("type");
+  if (tokenHash && rawType) {
+    const otpType = OTP_TYPES.has(rawType) ? rawType : "email";
+    const { data, error } = await client.auth.verifyOtp({
+      token_hash: tokenHash,
+      type: otpType,
+    });
+    if (error) return { session: null, error: error.message || "Email verification failed." };
+    if (data?.session) {
+      clearAuthParamsFromUrl();
+      return { session: data.session, error: null };
+    }
+  }
+
+  // 2) PKCE auth code (OAuth + some email confirm templates)
+  const code = get("code");
+  if (code) {
+    const { data, error } = await client.auth.exchangeCodeForSession(code);
+    if (!error && data?.session) {
+      clearAuthParamsFromUrl();
+      return { session: data.session, error: null };
+    }
+    // If exchange fails (e.g. code already used by initialize), fall through to getSession.
+  }
+
+  // 3) Implicit grant tokens in hash or query
+  const accessToken = get("access_token");
+  const refreshToken = get("refresh_token");
+  if (accessToken && refreshToken) {
+    const { data, error } = await client.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+    if (error) return { session: null, error: error.message || "Could not restore session." };
+    if (data?.session) {
+      clearAuthParamsFromUrl();
+      return { session: data.session, error: null };
+    }
+  }
+
+  // 4) Session may already be stored by detectSessionInUrl / initialize
+  for (let i = 0; i < 12; i += 1) {
+    const { data, error } = await client.auth.getSession();
+    if (error) return { session: null, error: error.message };
+    if (data?.session) {
+      clearAuthParamsFromUrl();
+      return { session: data.session, error: null };
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+
+  return {
+    session: null,
+    error: "No session found. Try signing in again.",
+  };
 }
