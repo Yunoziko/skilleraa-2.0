@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardShell from "@/components/layout/DashboardShell";
-import api from "@/lib/api";
 import { toast } from "sonner";
+import { createJob } from "@/lib/jobsService";
 
 const CATEGORIES = ["Design", "Development", "Writing", "Video", "Marketing", "Other"];
 const EXPERIENCE = ["Beginner", "Intermediate", "Expert"];
@@ -26,14 +26,14 @@ export default function PostJob() {
     e.preventDefault();
     setSaving(true);
     try {
-      const { data } = await api.post("/jobs", {
+      const job = await createJob({
         ...form,
         skills: form.skills.split(",").map((s) => s.trim()).filter(Boolean),
       });
       toast.success("Job posted");
-      nav(`/jobs/${data.id}`);
-    } catch (e) {
-      toast.error(e.response?.data?.detail || "Failed to post job");
+      nav(`/jobs/${job.id}`);
+    } catch (err) {
+      toast.error(err?.message || "Failed to post job");
     } finally {
       setSaving(false);
     }
@@ -63,7 +63,9 @@ export default function PostJob() {
               className="mt-2 w-full border skl-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-black bg-white"
               data-testid="post-job-category"
             >
-              {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+              {CATEGORIES.map((c) => (
+                <option key={c}>{c}</option>
+              ))}
             </select>
           </div>
           <div>
@@ -74,7 +76,9 @@ export default function PostJob() {
               className="mt-2 w-full border skl-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-black bg-white"
               data-testid="post-job-experience"
             >
-              {EXPERIENCE.map((c) => <option key={c}>{c}</option>)}
+              {EXPERIENCE.map((c) => (
+                <option key={c}>{c}</option>
+              ))}
             </select>
           </div>
         </div>
@@ -93,7 +97,9 @@ export default function PostJob() {
         </div>
 
         <div>
-          <label className="text-xs uppercase tracking-[0.18em] text-neutral-500 font-semibold">Required Skills (comma separated)</label>
+          <label className="text-xs uppercase tracking-[0.18em] text-neutral-500 font-semibold">
+            Required Skills (comma separated)
+          </label>
           <input
             value={form.skills}
             onChange={(e) => setForm({ ...form, skills: e.target.value })}

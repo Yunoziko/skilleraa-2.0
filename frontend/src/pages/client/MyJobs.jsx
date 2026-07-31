@@ -5,61 +5,42 @@ import EmptyState from "@/components/EmptyState";
 import JobStatusBadge from "@/components/JobStatusBadge";
 import { ListRowSkeleton } from "@/components/Skeleton";
 import ConfirmModal from "@/components/ConfirmModal";
-import api from "@/lib/api";
 import { Briefcase, Trash2, Star } from "lucide-react";
 import { toast } from "sonner";
 import { JOB_STATUSES, displayJobStatus, normalizeJobStatus } from "@/lib/jobStatus";
-import {
-  getReviewForJobByClient,
-} from "@/lib/mockReviews";
+import { getReviewForJobByClient } from "@/lib/mockReviews";
 import { DEMO_CLIENT_PROFILE_ID } from "@/lib/mockProfiles";
-import {
-  listMockClientJobs,
-  setMockJobStatus,
-  subscribeJobs,
-} from "@/lib/mockJobsStore";
+import { deleteJob, fetchMyJobs, updateJob } from "@/lib/jobsService";
+import { useAuth } from "@/context/AuthContext";
 
 export default function MyJobs() {
+  const { user } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [usingMock, setUsingMock] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
   const load = () => {
     setLoading(true);
-    api
-      .get("/jobs/mine")
-      .then((r) => {
-        setJobs(Array.isArray(r.data) ? r.data : []);
-        setUsingMock(false);
-      })
-      .catch(() => {
-        setJobs(listMockClientJobs());
-        setUsingMock(true);
+    fetchMyJobs(user?.id)
+      .then((list) => setJobs(list))
+      .catch((err) => {
+        setJobs([]);
+        toast.error(err?.message || "Could not load your jobs");
       })
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     load();
-    return subscribeJobs(load);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const changeStatus = async (id, status) => {
     try {
-      if (!usingMock) {
-        try {
-          await api.patch(`/jobs/${id}/status`, { status });
-        } catch {
-          setMockJobStatus(id, status);
-        }
-      } else {
-        setMockJobStatus(id, status);
-      }
+      await updateJob(id, { status });
       setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, status } : j)));
       toast.success(`Marked as ${displayJobStatus(status)}`);
-      load();
     } catch {
       toast.error("Could not update job status. Try again.");
     }
@@ -69,21 +50,7 @@ export default function MyJobs() {
     if (!pendingDelete) return;
     setDeleting(true);
     try {
-      if (!usingMock) {
-        try {
-          await api.delete(`/jobs/${pendingDelete}`);
-        } catch {
-          setJobs((prev) => prev.filter((j) => j.id !== pendingDelete));
-          toast.success("Job removed locally");
-          setPendingDelete(null);
-          return;
-        }
-      } else {
-        setJobs((prev) => prev.filter((j) => j.id !== pendingDelete));
-        toast.success("Job removed");
-        setPendingDelete(null);
-        return;
-      }
+      await deleteJob(pendingDelete);
       toast.success("Job deleted");
       setPendingDelete(null);
       load();
@@ -120,7 +87,11 @@ export default function MyJobs() {
       ) : (
         <div className="border skl-border rounded-2xl divide-y divide-neutral-200 overflow-hidden">
           {jobs.map((j) => (
-            <div key={j.id} className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 hover:bg-neutral-50 transition" data-testid={`myjob-row-${j.id}`}>
+            <div
+              key={j.id}
+              className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 hover:bg-neutral-50 transition"
+              data-testid={`myjob-row-${j.id}`}
+            >
               <Link to={`/jobs/${j.id}`} className="flex items-center gap-4 min-w-0 flex-1">
                 <div className="h-10 w-10 rounded-xl bg-black text-white grid place-items-center font-display font-semibold">
                   {j.company_letter}
@@ -168,7 +139,8 @@ export default function MyJobs() {
                     {getReviewForJobByClient(j.id, DEMO_CLIENT_PROFILE_ID) ? "Edit review" : "Leave review"}
                   </Link>
                 )}
-                <button type="button"
+                <button
+                  type="button"
                   onClick={() => setPendingDelete(j.id)}
                   className="p-2 rounded-full border skl-border hover:bg-white text-neutral-600"
                   aria-label="Delete job"

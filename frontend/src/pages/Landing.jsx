@@ -17,6 +17,7 @@ import Footer from "@/components/layout/Footer";
 import DashboardMockup from "@/components/DashboardMockup";
 import JobCard from "@/components/JobCard";
 import api from "@/lib/api";
+import { fetchJobs } from "@/lib/jobsService";
 
 const features = [
   { icon: ShieldCheck, title: "Verified Clients", desc: "Every client is manually reviewed before their first post." },
@@ -52,7 +53,9 @@ export default function Landing() {
   const [stats, setStats] = useState({ students: 0, clients: 0, jobs: 0, success_rate: 95 });
 
   useEffect(() => {
-    api.get("/jobs/featured").then((r) => setFeatured(r.data)).catch(() => {});
+    fetchJobs()
+      .then((list) => setFeatured((list || []).slice(0, 3)))
+      .catch(() => setFeatured([]));
     api.get("/stats").then((r) => setStats(r.data)).catch(() => {});
   }, []);
 

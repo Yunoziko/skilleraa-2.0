@@ -16,6 +16,7 @@ import {
   AUTH_CALLBACK_PATH,
   RESET_PASSWORD_PATH,
 } from "@/lib/supabase";
+import { ensureProfile } from "@/lib/profilesService";
 
 const AuthContext = createContext(null);
 
@@ -104,7 +105,26 @@ export function AuthProvider({ children }) {
       role: roleOverride || undefined,
     });
 
-    // Soft-merge backend profile when available (auth still works if FastAPI is down)
+    // Ensure Supabase public.profiles row (used by jobs RLS / client_id)
+    try {
+      const dbProfile = await ensureProfile({
+        name: profile?.name,
+        role: roleOverride || profile?.role,
+      });
+      if (dbProfile) {
+        profile = {
+          ...profile,
+          id: dbProfile.id || profile?.id,
+          name: dbProfile.full_name || profile?.name,
+          role: resolveAuthRole(dbProfile.role, profile?.role),
+          avatar_url: dbProfile.avatar_url || profile?.avatar_url || "",
+        };
+      }
+    } catch {
+      // Trigger may already have created the row; auth still works
+    }
+
+    // Soft-merge FastAPI profile when available (optional)
     const backendProfile = await trySyncProfile({
       name: profile?.name,
       role: profile?.role,

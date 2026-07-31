@@ -11,7 +11,6 @@ import {
   DEMO_CLIENT_PROFILE_ID,
   DEMO_STUDENT_PROFILE_ID,
   displayAvailability,
-  getMockActiveJobsForClient,
   getMockProfile,
 } from "@/lib/mockProfiles";
 import {
@@ -20,6 +19,8 @@ import {
   listReviewsForStudent,
   subscribeReviews,
 } from "@/lib/mockReviews";
+import { fetchJobs } from "@/lib/jobsService";
+import { getProfile } from "@/lib/profilesService";
 
 function ResumePlaceholder({ filename }) {
   return (
@@ -49,28 +50,48 @@ export default function PublicProfile() {
       setReviews(listReviewsForStudent(studentId || DEMO_STUDENT_PROFILE_ID).slice(0, 5));
     };
 
-    api
-      .get(`/profile/${id}`)
-      .then((r) => {
+    const loadClientJobs = async (clientId) => {
+      try {
+        const list = await fetchJobs({ status: "open" });
         if (!active) return;
-        setProfile(r.data);
-        if (r.data.role === "client") {
-          api
-            .get("/jobs")
-            .then((jr) => {
-              if (!active) return;
-              setJobs((jr.data || []).filter((j) => String(j.client_id) === String(id)));
-            })
-            .catch(() => {
-              if (!active) return;
-              setJobs(getMockActiveJobsForClient(id));
-            });
+        setJobs(list.filter((j) => String(j.client_id) === String(clientId)));
+      } catch {
+        if (!active) return;
+        setJobs([]);
+      }
+    };
+
+    getProfile(id)
+      .then(async (row) => {
+        if (!active) return;
+        if (!row) throw new Error("not found");
+        setProfile({
+          id: row.id,
+          role: row.role,
+          name: row.full_name,
+          company_name: row.full_name,
+          avatar_letter: (row.full_name || "U").charAt(0).toUpperCase(),
+          avatar_url: row.avatar_url,
+        });
+        if (row.role === "client") {
+          await loadClientJobs(row.id);
         } else {
-          loadStudentReviews(r.data.id || DEMO_STUDENT_PROFILE_ID);
+          loadStudentReviews(row.id || DEMO_STUDENT_PROFILE_ID);
         }
       })
-      .catch(() => {
+      .catch(async () => {
         if (!active) return;
+        // Fallback: FastAPI profile, then mock
+        try {
+          const { data } = await api.get(`/profile/${id}`);
+          if (!active) return;
+          setProfile(data);
+          if (data.role === "client") await loadClientJobs(data.id || id);
+          else loadStudentReviews(data.id || DEMO_STUDENT_PROFILE_ID);
+          return;
+        } catch {
+          /* mock below */
+        }
         const roleHint =
           id === DEMO_CLIENT_PROFILE_ID || id?.startsWith("mock-client")
             ? "client"
@@ -81,11 +102,8 @@ export default function PublicProfile() {
           return;
         }
         setProfile(mock);
-        if (mock.role === "client") {
-          setJobs(getMockActiveJobsForClient(mock.id));
-        } else {
-          loadStudentReviews(mock.id || DEMO_STUDENT_PROFILE_ID);
-        }
+        if (mock.role === "client") await loadClientJobs(mock.id);
+        else loadStudentReviews(mock.id || DEMO_STUDENT_PROFILE_ID);
       });
 
     const unsub = subscribeReviews(() => {

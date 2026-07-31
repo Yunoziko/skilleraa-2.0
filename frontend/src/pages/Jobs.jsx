@@ -5,12 +5,11 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import JobCard from "@/components/JobCard";
 import EmptyState from "@/components/EmptyState";
-import DemoBanner from "@/components/DemoBanner";
+import ErrorState from "@/components/ErrorState";
 import { JobCardSkeletonGrid } from "@/components/Skeleton";
-import api from "@/lib/api";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
-import { filterMockJobs } from "@/data/mockJobs";
+import { fetchJobs as fetchJobsFromSupabase } from "@/lib/jobsService";
 import {
   listMockSavedIds,
   subscribeSavedJobs,
@@ -25,8 +24,7 @@ export default function Jobs() {
   const { user } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [usingMock, setUsingMock] = useState(false);
-  const [loadError, setLoadError] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const [q, setQ] = useState("");
   const [category, setCategory] = useState("All");
   const [experience, setExperience] = useState("All");
@@ -41,74 +39,50 @@ export default function Jobs() {
   };
 
   const refreshSaved = () => {
-    const local = listMockSavedIds();
-    if (user && user.role === "student" && !usingMock) {
-      api
-        .get("/jobs/saved/ids")
-        .then((r) => setSavedIds(new Set([...(r.data || []), ...local])))
-        .catch(() => setSavedIds(new Set(local)));
-    } else {
-      setSavedIds(new Set(local));
-    }
+    setSavedIds(new Set(listMockSavedIds()));
   };
 
-  const fetchJobs = async (overrides = {}) => {
+  const loadJobs = async (overrides = {}) => {
     setLoading(true);
-    setLoadError(false);
+    setLoadError("");
     const nextQ = overrides.q !== undefined ? overrides.q : q;
     const nextCategory = overrides.category !== undefined ? overrides.category : category;
     const nextExperience = overrides.experience !== undefined ? overrides.experience : experience;
     const nextRemote = overrides.remote !== undefined ? overrides.remote : remote;
-    const params = {};
-    if (nextQ) params.q = nextQ;
-    if (nextCategory !== "All") params.category = nextCategory;
-    if (nextExperience !== "All") params.experience = nextExperience;
-    if (nextRemote !== null) params.remote = nextRemote;
 
     try {
-      const { data } = await api.get("/jobs", { params });
-      setJobs(Array.isArray(data) ? data : []);
-      setUsingMock(false);
-    } catch {
-      setJobs(filterMockJobs(params));
-      setUsingMock(true);
-      setLoadError(true);
+      const list = await fetchJobsFromSupabase({
+        q: nextQ,
+        category: nextCategory,
+        experience: nextExperience,
+        remote: nextRemote,
+      });
+      setJobs(list);
+    } catch (err) {
+      setJobs([]);
+      setLoadError(err?.message || "Could not load jobs.");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchJobs();
+    loadJobs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category, experience, remote]);
 
   useEffect(() => {
     refreshSaved();
     return subscribeSavedJobs(refreshSaved);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, usingMock]);
+  }, []);
 
   const onClearFilters = () => {
     clearFilters();
-    fetchJobs({ q: "", category: "All", experience: "All", remote: null });
+    loadJobs({ q: "", category: "All", experience: "All", remote: null });
   };
 
   const toggleSave = async (id) => {
     try {
-      if (!usingMock && user && user.role === "student") {
-        try {
-          const { data } = await api.post(`/jobs/${id}/save`);
-          const next = new Set(savedIds);
-          if (data.saved) next.add(id);
-          else next.delete(id);
-          setSavedIds(next);
-          toast.success(data.saved ? "Job saved" : "Removed from saved");
-          return;
-        } catch {
-          // fall through to mock
-        }
-      }
       const { saved } = toggleMockSave(id);
       setSavedIds(new Set(listMockSavedIds()));
       toast.success(saved ? "Job saved" : "Removed from saved");
@@ -132,16 +106,10 @@ export default function Jobs() {
           </p>
         </motion.div>
 
-        {usingMock && loadError && (
-          <div className="mt-6">
-            <DemoBanner message="Showing demo jobs — live API unavailable." />
-          </div>
-        )}
-
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            fetchJobs();
+            loadJobs();
           }}
           className="mt-8 flex items-center gap-2 border skl-border rounded-full px-4 py-2 max-w-2xl"
           data-testid="jobs-search-form"
@@ -214,10 +182,16 @@ export default function Jobs() {
       <section className={`${pageContainer} pb-24`}>
         {loading ? (
           <JobCardSkeletonGrid count={6} />
+        ) : loadError ? (
+          <ErrorState
+            title="Could not load jobs"
+            description={loadError}
+            onRetry={() => loadJobs()}
+          />
         ) : jobs.length === 0 ? (
           <EmptyState
             title="No jobs match your filters"
-            description="Try clearing filters or broadening your search."
+            description="Try clearing filters or post a new job as a client."
             icon={Search}
             ctaLabel="Clear filters"
             onCtaClick={onClearFilters}
@@ -229,7 +203,7 @@ export default function Jobs() {
                 key={j.id}
                 job={j}
                 index={i}
-                onSave={toggleSave}
+                onSave={user?.role === "student" ? toggleSave : undefined}
                 saved={savedIds.has(j.id)}
               />
             ))}

@@ -16,11 +16,7 @@ import {
   mockClientApplicationStats,
   subscribeApplications,
 } from "@/lib/mockApplications";
-import {
-  listMockClientJobs,
-  mockClientJobStats,
-  subscribeJobs,
-} from "@/lib/mockJobsStore";
+import { fetchMyJobs } from "@/lib/jobsService";
 
 export default function ClientDashboard() {
   const { user } = useAuth();
@@ -49,22 +45,18 @@ export default function ClientDashboard() {
   };
 
   const loadJobs = () =>
-    api
-      .get("/jobs/mine")
-      .then((r) => {
-        applyJobs(Array.isArray(r.data) ? r.data : []);
-      })
-      .catch(() => {
-        const list = listMockClientJobs();
-        setJobs(list.slice(0, 4));
-        const js = mockClientJobStats(list);
+    fetchMyJobs(user?.id)
+      .then((list) => {
+        applyJobs(list);
         const as_ = mockClientApplicationStats();
         setStats((prev) => ({
           ...prev,
-          ...js,
           applications: as_.applications,
           hired: as_.hired,
         }));
+      })
+      .catch(() => {
+        applyJobs([]);
       });
 
   const loadApps = () =>
@@ -114,14 +106,12 @@ export default function ClientDashboard() {
     });
 
     const unsubA = subscribeApplications(loadApps);
-    const unsubJ = subscribeJobs(loadJobs);
     return () => {
       cancelled = true;
       unsubA();
-      unsubJ();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [user?.id]);
 
   const activeApplicants = apps.filter((a) => displayApplicationStatus(a.status) === "Pending").length;
 

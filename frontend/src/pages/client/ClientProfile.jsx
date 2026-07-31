@@ -7,12 +7,11 @@ import { ListRowSkeleton } from "@/components/Skeleton";
 import { useAuth } from "@/context/AuthContext";
 import { Briefcase, ExternalLink, Pencil } from "lucide-react";
 import {
-  DEMO_CLIENT_PROFILE_ID,
-  getMockActiveJobsForClient,
   getMyMockProfile,
   subscribeProfiles,
 } from "@/lib/mockProfiles";
-import { subscribeJobs } from "@/lib/mockJobsStore";
+import { fetchMyJobs } from "@/lib/jobsService";
+import { isPubliclyListed } from "@/lib/jobStatus";
 
 export default function ClientProfile() {
   const { user } = useAuth();
@@ -20,7 +19,7 @@ export default function ClientProfile() {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const load = () => {
+  const load = async () => {
     setLoading(true);
     const local = getMyMockProfile("client");
     if (user && user !== false) {
@@ -28,7 +27,7 @@ export default function ClientProfile() {
         ...local,
         name: user.name || local.name,
         email: user.email || local.email,
-        company_name: user.company_name || local.company_name,
+        company_name: user.company_name || user.name || local.company_name,
         company_website: user.company_website || local.company_website,
         company_description: user.company_description || local.company_description,
         location: user.location || local.location,
@@ -37,17 +36,21 @@ export default function ClientProfile() {
     } else {
       setProfile(local);
     }
-    setJobs(getMockActiveJobsForClient(local.id).slice(0, 6));
-    setLoading(false);
+    try {
+      const list = await fetchMyJobs(user?.id);
+      setJobs(list.filter((j) => isPubliclyListed(j.status)).slice(0, 6));
+    } catch {
+      setJobs([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     load();
     const unsubP = subscribeProfiles(load);
-    const unsubJ = subscribeJobs(load);
     return () => {
       unsubP();
-      unsubJ();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);

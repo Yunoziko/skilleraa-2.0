@@ -6,10 +6,9 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import ConfirmModal from "@/components/ConfirmModal";
 import JobStatusBadge from "@/components/JobStatusBadge";
-import api from "@/lib/api";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
-import { getMockJobById } from "@/data/mockJobs";
+import { fetchJobById } from "@/lib/jobsService";
 import { isPubliclyListed } from "@/lib/jobStatus";
 import {
   createMockApplication,
@@ -38,28 +37,24 @@ export default function JobDetail() {
   const [applied, setApplied] = useState(false);
   const [showApply, setShowApply] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [usingMock, setUsingMock] = useState(false);
   const [saved, setSaved] = useState(false);
 
   const student = resolveApplicantStudent(user);
 
   useEffect(() => {
     let active = true;
-    api
-      .get(`/jobs/${id}`)
-      .then((r) => {
+    fetchJobById(id)
+      .then((data) => {
         if (!active) return;
-        setJob(r.data);
-        setUsingMock(false);
+        if (!data) {
+          toast.error("Job not found");
+          nav("/jobs");
+          return;
+        }
+        setJob(data);
       })
       .catch(() => {
         if (!active) return;
-        const mock = getMockJobById(id);
-        if (mock) {
-          setJob(mock);
-          setUsingMock(true);
-          return;
-        }
         toast.error("Job not found");
         nav("/jobs");
       });
@@ -72,20 +67,11 @@ export default function JobDetail() {
     const refreshApplied = () => {
       if (hasMockApplied(id, student.id)) {
         setApplied(true);
-        return;
-      }
-      if (user?.role === "student" && !usingMock) {
-        api
-          .get("/applications/mine")
-          .then((r) => {
-            if (r.data.some((a) => String(a.job_id) === String(id))) setApplied(true);
-          })
-          .catch(() => {});
       }
     };
     refreshApplied();
     return subscribeApplications(refreshApplied);
-  }, [user, id, usingMock, student.id]);
+  }, [user, id, student.id]);
 
   useEffect(() => {
     const refreshSaved = () => setSaved(isMockSaved(id) || listMockSavedIds().includes(String(id)));
@@ -143,46 +129,12 @@ export default function JobDetail() {
   };
 
   const performSubmit = async () => {
+    // Applications are not on Supabase yet — keep local mock flow.
     setApplying(true);
     try {
-      if (!usingMock && user && user !== false && user.role === "student") {
-        try {
-          await api.post(`/jobs/${id}/apply`, { cover_letter: coverLetter.trim() });
-          try {
-            if (!hasMockApplied(id, student.id)) {
-              createMockApplication({
-                job,
-                jobId: id,
-                coverLetter,
-                expectedBudget,
-                deliveryTime,
-                portfolioUrl,
-                student,
-              });
-            }
-          } catch {
-            // duplicate local copy
-          }
-          setApplied(true);
-          setShowApply(false);
-          setConfirmOpen(false);
-          toast.success("Application submitted successfully");
-          return;
-        } catch (e) {
-          const detail = e.response?.data?.detail;
-          if (typeof detail === "string" && /already applied/i.test(detail)) {
-            setApplied(true);
-            setConfirmOpen(false);
-            setFormError("You have already applied to this job.");
-            return;
-          }
-          // Backend unavailable — fall through to mock
-        }
-      }
-
       saveLocalApplication();
     } catch (e) {
-      const msg = e?.message || e.response?.data?.detail || "Failed to apply";
+      const msg = e?.message || "Failed to apply";
       setFormError(typeof msg === "string" ? msg : "Failed to apply");
       setConfirmOpen(false);
     } finally {
@@ -207,16 +159,6 @@ export default function JobDetail() {
 
   const toggleSave = async () => {
     try {
-      if (!usingMock && user && user.role === "student") {
-        try {
-          const { data } = await api.post(`/jobs/${id}/save`);
-          setSaved(Boolean(data.saved));
-          toast.success(data.saved ? "Job saved" : "Removed from saved");
-          return;
-        } catch {
-          // mock fallback
-        }
-      }
       const { saved: next } = toggleMockSave(id);
       setSaved(next);
       toast.success(next ? "Job saved" : "Removed from saved");

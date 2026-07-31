@@ -11,6 +11,7 @@ import {
   subscribeApplications,
   updateMockApplicationStatus,
 } from "@/lib/mockApplications";
+import { fetchMyJobs } from "@/lib/jobsService";
 
 export default function Applicants() {
   const [apps, setApps] = useState([]);
@@ -38,13 +39,12 @@ export default function Applicants() {
       })
       .finally(() => setLoading(false));
 
-    api
-      .get("/jobs/mine")
-      .then((r) => {
-        setJobs(r.data);
-        if (r.data.length > 0 && !selectedJob) setSelectedJob(r.data[0].id);
+    fetchMyJobs()
+      .then((list) => {
+        setJobs(list);
+        if (list.length > 0 && !selectedJob) setSelectedJob(list[0].id);
       })
-      .catch(() => {});
+      .catch(() => setJobs([]));
   };
 
   useEffect(() => {

@@ -11,7 +11,6 @@ import { JobCardSkeletonGrid, ListRowSkeleton, StatSkeletonGrid } from "@/compon
 import api from "@/lib/api";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
-import { filterMockJobs } from "@/data/mockJobs";
 import {
   displayApplicationStatus,
   listMyMockApplications,
@@ -25,6 +24,7 @@ import {
   subscribeSavedJobs,
   toggleMockSave,
 } from "@/lib/mockSavedJobs";
+import { fetchJobs } from "@/lib/jobsService";
 
 export default function StudentDashboard() {
   const { user } = useAuth();
@@ -121,13 +121,12 @@ export default function StudentDashboard() {
           profile_completion: 40,
         });
       });
-    const rec = api
-      .get("/jobs")
-      .then((r) => {
-        if (!cancelled) setRecommended((r.data || []).slice(0, 3));
+    const rec = fetchJobs()
+      .then((list) => {
+        if (!cancelled) setRecommended((list || []).slice(0, 3));
       })
       .catch(() => {
-        if (!cancelled) setRecommended(filterMockJobs({}).slice(0, 3));
+        if (!cancelled) setRecommended([]);
       });
 
     Promise.allSettled([dash, loadApplications(), loadSaved(), rec]).finally(() => {
