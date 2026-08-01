@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { NavLink, Link, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -20,6 +21,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import NotificationBell from "@/components/NotificationBell";
 import { btnGhost } from "@/lib/uiClasses";
+import { subscribeMessages, totalUnreadMessages } from "@/lib/messagesService";
 
 const studentNav = [
   { to: "/student", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -51,6 +53,7 @@ export default function DashboardShell({ children, title, actions }) {
   const { user, logout } = useAuth();
   const nav = useNavigate();
   const { pathname } = useLocation();
+  const [unreadMessages, setUnreadMessages] = useState(0);
   // Offline demo: infer role from URL when auth is paused
   const isClient =
     user?.role === "client" ||
@@ -58,6 +61,26 @@ export default function DashboardShell({ children, title, actions }) {
   const items = isClient ? clientNav : studentNav;
   const notificationsPath = isClient ? "/client/notifications" : "/student/notifications";
   const audience = isClient ? "client" : "student";
+  const messagesPath = isClient ? "/client/messages" : "/student/messages";
+
+  useEffect(() => {
+    if (!user?.id) {
+      setUnreadMessages(0);
+      return undefined;
+    }
+    let active = true;
+    const refresh = () => {
+      totalUnreadMessages()
+        .then((n) => {
+          if (active) setUnreadMessages(n);
+        })
+        .catch(() => {
+          if (active) setUnreadMessages(0);
+        });
+    };
+    refresh();
+    return subscribeMessages(refresh);
+  }, [user?.id, pathname]);
 
   return (
     <div className="min-h-screen bg-white text-black">
@@ -88,8 +111,22 @@ export default function DashboardShell({ children, title, actions }) {
                   }`
                 }
               >
-                <item.icon size={16} aria-hidden />
-                <span>{item.label}</span>
+                {({ isActive }) => (
+                  <>
+                    <item.icon size={16} aria-hidden />
+                    <span className="flex-1">{item.label}</span>
+                    {item.to === messagesPath && unreadMessages > 0 && (
+                      <span
+                        className={`text-[10px] font-semibold rounded-full min-w-[18px] h-[18px] grid place-items-center px-1 ${
+                          isActive ? "bg-white text-black" : "bg-black text-white"
+                        }`}
+                        data-testid="sidebar-messages-unread"
+                      >
+                        {unreadMessages > 99 ? "99+" : unreadMessages}
+                      </span>
+                    )}
+                  </>
+                )}
               </NavLink>
             ))}
           </nav>

@@ -173,21 +173,40 @@ export async function sendChatMessage(applicationId, text) {
   const uid = await currentUserId();
   const body = String(text || "").trim();
   if (!body) throw new Error("Message cannot be empty.");
-
-  const { apps } = await fetchChatApplications();
-  const app = apps.find((a) => a.id === applicationId);
-  if (!app) throw new Error("You can only chat on your applications.");
-
-  const participant = participantFromApplication(app, uid);
-  if (!participant.id) throw new Error("Could not resolve chat recipient.");
+  if (!applicationId) throw new Error("Missing conversation.");
 
   const client = assertClient();
+  const { data: app, error: appError } = await client
+    .from("applications")
+    .select(
+      `
+      id,
+      freelancer_id,
+      jobs!applications_job_id_fkey (
+        id,
+        client_id
+      )
+    `
+    )
+    .eq("id", applicationId)
+    .maybeSingle();
+
+  if (appError) throw appError;
+  if (!app) throw new Error("You can only chat on your applications.");
+
+  const clientId = app.jobs?.client_id;
+  const freelancerId = app.freelancer_id;
+  let receiverId = null;
+  if (uid === freelancerId) receiverId = clientId;
+  else if (uid === clientId) receiverId = freelancerId;
+  if (!receiverId) throw new Error("Could not resolve chat recipient.");
+
   const { data, error } = await client
     .from("messages")
     .insert({
       application_id: applicationId,
       sender_id: uid,
-      receiver_id: participant.id,
+      receiver_id: receiverId,
       message: body,
     })
     .select("id, application_id, sender_id, receiver_id, message, created_at, read_at")
