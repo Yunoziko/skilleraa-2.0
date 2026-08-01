@@ -149,28 +149,37 @@ export default function Applicants() {
                     <span className="text-[10px] uppercase tracking-widest font-semibold border skl-border px-2 py-1 rounded-full">
                       {label}
                     </span>
-                    {label === "Pending" && (
-                      <div className="flex flex-wrap gap-1 justify-end">
-                        <button
-                          type="button"
-                          disabled={busyId === a.id}
-                          onClick={() => accept(a.id)}
-                          className="text-[11px] px-3 py-1.5 rounded-full bg-black text-white hover:bg-black/90 disabled:opacity-60"
-                          data-testid={`applicant-${a.id}-accept`}
-                        >
-                          Accept
-                        </button>
-                        <button
-                          type="button"
-                          disabled={busyId === a.id}
-                          onClick={() => reject(a.id)}
-                          className="text-[11px] px-3 py-1.5 rounded-full border skl-border hover:bg-neutral-50 disabled:opacity-60"
-                          data-testid={`applicant-${a.id}-reject`}
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    )}
+                    <div className="flex flex-wrap gap-1 justify-end">
+                      <Link
+                        to={`/client/messages?c=${a.id}`}
+                        className="text-[11px] px-3 py-1.5 rounded-full border skl-border hover:bg-neutral-50"
+                        data-testid={`applicant-${a.id}-message`}
+                      >
+                        Message
+                      </Link>
+                      {label === "Pending" && (
+                        <>
+                          <button
+                            type="button"
+                            disabled={busyId === a.id}
+                            onClick={() => accept(a.id)}
+                            className="text-[11px] px-3 py-1.5 rounded-full bg-black text-white hover:bg-black/90 disabled:opacity-60"
+                            data-testid={`applicant-${a.id}-accept`}
+                          >
+                            Accept
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busyId === a.id}
+                            onClick={() => reject(a.id)}
+                            className="text-[11px] px-3 py-1.5 rounded-full border skl-border hover:bg-neutral-50 disabled:opacity-60"
+                            data-testid={`applicant-${a.id}-reject`}
+                          >
+                            Reject
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

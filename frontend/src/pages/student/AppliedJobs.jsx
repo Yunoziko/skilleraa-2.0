@@ -50,31 +50,46 @@ export default function AppliedJobs() {
         <div className="border skl-border rounded-2xl divide-y divide-neutral-200 overflow-hidden">
           {apps.map((a) => {
             const jobPath = a.job?.id ? `/jobs/${a.job.id}` : a.job_id ? `/jobs/${a.job_id}` : null;
-            const RowTag = jobPath ? Link : "div";
-            const rowProps = jobPath ? { to: jobPath } : {};
             return (
-              <RowTag
+              <div
                 key={a.id}
-                {...rowProps}
                 className="flex items-center justify-between p-5 hover:bg-neutral-50 transition"
                 data-testid={`applied-row-${a.id}`}
               >
-                <div className="flex items-center gap-4 min-w-0">
-                  <div className="h-10 w-10 rounded-xl bg-black text-white grid place-items-center font-display font-semibold">
-                    {a.job?.company_letter || "?"}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="font-medium truncate">{a.job?.title || "Removed job"}</div>
-                    <div className="text-xs text-neutral-500 truncate">
-                      {a.job?.company_name || "—"} · Applied {a.created_at ? new Date(a.created_at).toLocaleDateString() : "—"}
-                      {a.expected_budget ? ` · Bid ${a.expected_budget}` : ""}
+                {jobPath ? (
+                  <Link to={jobPath} className="flex items-center gap-4 min-w-0 flex-1">
+                    <div className="h-10 w-10 rounded-xl bg-black text-white grid place-items-center font-display font-semibold">
+                      {a.job?.company_letter || "?"}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">{a.job?.title || "Removed job"}</div>
+                      <div className="text-xs text-neutral-500 truncate">
+                        {a.job?.company_name || "—"} · Applied {a.created_at ? new Date(a.created_at).toLocaleDateString() : "—"}
+                        {a.expected_budget ? ` · Bid ${a.expected_budget}` : ""}
+                      </div>
+                    </div>
+                  </Link>
+                ) : (
+                  <div className="flex items-center gap-4 min-w-0 flex-1">
+                    <div className="h-10 w-10 rounded-xl bg-black text-white grid place-items-center font-display font-semibold">?</div>
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">Removed job</div>
                     </div>
                   </div>
+                )}
+                <div className="ml-3 shrink-0 flex items-center gap-2">
+                  <Link
+                    to={`/student/messages?c=${a.id}`}
+                    className="text-[10px] uppercase tracking-widest font-semibold border skl-border px-2 py-1 rounded-full hover:bg-neutral-50"
+                    data-testid={`applied-message-${a.id}`}
+                  >
+                    Message
+                  </Link>
+                  <span className="text-[10px] uppercase tracking-widest font-semibold border skl-border px-2 py-1 rounded-full">
+                    {displayApplicationStatus(a.status)}
+                  </span>
                 </div>
-                <span className="text-[10px] uppercase tracking-widest font-semibold border skl-border px-2 py-1 rounded-full ml-3 shrink-0">
-                  {displayApplicationStatus(a.status)}
-                </span>
-              </RowTag>
+              </div>
             );
           })}
         </div>
