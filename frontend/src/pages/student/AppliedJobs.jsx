@@ -3,43 +3,36 @@ import { Link } from "react-router-dom";
 import DashboardShell from "@/components/layout/DashboardShell";
 import EmptyState from "@/components/EmptyState";
 import { ListRowSkeleton } from "@/components/Skeleton";
-import api from "@/lib/api";
 import { FileText } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
 import {
   displayApplicationStatus,
-  listMyMockApplications,
-  resolveApplicantStudent,
-  subscribeApplications,
-} from "@/lib/mockApplications";
+  fetchMyApplications,
+} from "@/lib/applicationsService";
 
 export default function AppliedJobs() {
-  const { user } = useAuth();
-  const student = resolveApplicantStudent(user);
   const [apps, setApps] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const load = () => {
-    api
-      .get("/applications/mine")
-      .then((r) => {
-        const remote = Array.isArray(r.data) ? r.data : [];
-        const local = listMyMockApplications(student.id);
-        const remoteIds = new Set(remote.map((a) => a.id));
-        const merged = [...remote, ...local.filter((a) => !remoteIds.has(a.id))];
-        setApps(merged);
-      })
-      .catch(() => {
-        setApps(listMyMockApplications(student.id));
-      })
-      .finally(() => setLoading(false));
-  };
-
   useEffect(() => {
-    load();
-    return subscribeApplications(load);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [student.id]);
+    let active = true;
+    setLoading(true);
+    fetchMyApplications()
+      .then((list) => {
+        if (active) setApps(list);
+      })
+      .catch((e) => {
+        if (!active) return;
+        toast.error(e?.message || "Failed to load applications");
+        setApps([]);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <DashboardShell title="My Applications">
@@ -74,6 +67,7 @@ export default function AppliedJobs() {
                     <div className="font-medium truncate">{a.job?.title || "Removed job"}</div>
                     <div className="text-xs text-neutral-500 truncate">
                       {a.job?.company_name || "—"} · Applied {a.created_at ? new Date(a.created_at).toLocaleDateString() : "—"}
+                      {a.expected_budget ? ` · Bid ${a.expected_budget}` : ""}
                     </div>
                   </div>
                 </div>

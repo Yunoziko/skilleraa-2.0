@@ -11,11 +11,10 @@ import { useAuth } from "@/context/AuthContext";
 import { fetchJobById } from "@/lib/jobsService";
 import { isPubliclyListed } from "@/lib/jobStatus";
 import {
-  createMockApplication,
-  hasMockApplied,
-  resolveApplicantStudent,
-  subscribeApplications,
-} from "@/lib/mockApplications";
+  createApplication,
+  hasApplied,
+  parseBidAmount,
+} from "@/lib/applicationsService";
 import {
   isMockSaved,
   listMockSavedIds,
@@ -28,18 +27,15 @@ export default function JobDetail() {
   const nav = useNavigate();
   const { user } = useAuth();
   const [job, setJob] = useState(null);
-  const [coverLetter, setCoverLetter] = useState("");
-  const [expectedBudget, setExpectedBudget] = useState("");
-  const [deliveryTime, setDeliveryTime] = useState("");
-  const [portfolioUrl, setPortfolioUrl] = useState("");
+  const [proposal, setProposal] = useState("");
+  const [bidAmount, setBidAmount] = useState("");
+  const [estimatedDays, setEstimatedDays] = useState("");
   const [formError, setFormError] = useState("");
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
   const [showApply, setShowApply] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [saved, setSaved] = useState(false);
-
-  const student = resolveApplicantStudent(user);
 
   useEffect(() => {
     let active = true;
@@ -64,14 +60,22 @@ export default function JobDetail() {
   }, [id, nav]);
 
   useEffect(() => {
-    const refreshApplied = () => {
-      if (hasMockApplied(id, student.id)) {
-        setApplied(true);
-      }
+    let active = true;
+    if (!user?.id || user.role !== "student") {
+      setApplied(false);
+      return undefined;
+    }
+    hasApplied(id, user.id)
+      .then((yes) => {
+        if (active) setApplied(yes);
+      })
+      .catch(() => {
+        if (active) setApplied(false);
+      });
+    return () => {
+      active = false;
     };
-    refreshApplied();
-    return subscribeApplications(refreshApplied);
-  }, [user, id, student.id]);
+  }, [user?.id, user?.role, id]);
 
   useEffect(() => {
     const refreshSaved = () => setSaved(isMockSaved(id) || listMockSavedIds().includes(String(id)));
@@ -80,27 +84,19 @@ export default function JobDetail() {
   }, [id]);
 
   const validateForm = () => {
-    if (hasMockApplied(id, student.id) || applied) {
+    if (applied) {
       return "You have already applied to this job.";
     }
-    if (!coverLetter.trim() || coverLetter.trim().length < 20) {
-      return "Cover letter must be at least 20 characters.";
+    if (!proposal.trim() || proposal.trim().length < 20) {
+      return "Proposal must be at least 20 characters.";
     }
-    if (!expectedBudget.trim()) {
-      return "Expected budget is required.";
+    const amount = parseBidAmount(bidAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return "Enter a valid bid amount.";
     }
-    if (!deliveryTime.trim()) {
-      return "Estimated delivery time is required.";
-    }
-    if (portfolioUrl.trim()) {
-      try {
-        const raw = portfolioUrl.trim();
-        const url = raw.startsWith("http") ? raw : `https://${raw}`;
-        // eslint-disable-next-line no-new
-        new URL(url);
-      } catch {
-        return "Portfolio link must be a valid URL.";
-      }
+    const days = Number.parseInt(String(estimatedDays), 10);
+    if (!Number.isFinite(days) || days < 1) {
+      return "Estimated delivery days must be at least 1.";
     }
     if (job && !isPubliclyListed(job.status)) {
       return "This job is not open for new applications.";
@@ -108,35 +104,28 @@ export default function JobDetail() {
     return "";
   };
 
-  const saveLocalApplication = () => {
-    createMockApplication({
-      job,
-      jobId: id,
-      coverLetter,
-      expectedBudget,
-      deliveryTime,
-      portfolioUrl,
-      student,
-    });
-    setApplied(true);
-    setShowApply(false);
-    setConfirmOpen(false);
-    setCoverLetter("");
-    setExpectedBudget("");
-    setDeliveryTime("");
-    setPortfolioUrl("");
-    toast.success("Application submitted successfully");
-  };
-
   const performSubmit = async () => {
-    // Applications are not on Supabase yet — keep local mock flow.
     setApplying(true);
+    setFormError("");
     try {
-      saveLocalApplication();
+      await createApplication({
+        jobId: id,
+        proposal,
+        bidAmount,
+        estimatedDays,
+      });
+      setApplied(true);
+      setShowApply(false);
+      setConfirmOpen(false);
+      setProposal("");
+      setBidAmount("");
+      setEstimatedDays("");
+      toast.success("Application submitted successfully");
     } catch (e) {
-      const msg = e?.message || "Failed to apply";
+      const msg = e?.message || e?.error_description || "Failed to apply";
       setFormError(typeof msg === "string" ? msg : "Failed to apply");
       setConfirmOpen(false);
+      toast.error(typeof msg === "string" ? msg : "Failed to apply");
     } finally {
       setApplying(false);
     }
@@ -145,7 +134,12 @@ export default function JobDetail() {
   const onFormSubmit = (e) => {
     e.preventDefault();
     setFormError("");
-    if (user && user !== false && user.role === "client") {
+    if (!user) {
+      toast.error("Please sign in to apply");
+      nav("/login");
+      return;
+    }
+    if (user.role === "client") {
       toast.error("Only students can apply to jobs");
       return;
     }
@@ -282,7 +276,14 @@ export default function JobDetail() {
                 </div>
               ) : (
                 <button type="button"
-                  onClick={() => setShowApply(!showApply)}
+                  onClick={() => {
+                    if (!user) {
+                      toast.error("Please sign in to apply");
+                      nav("/login");
+                      return;
+                    }
+                    setShowApply(!showApply);
+                  }}
                   className="mt-4 w-full bg-black text-white rounded-full py-3 text-sm font-medium hover:bg-black/90 active:scale-[0.98] transition"
                   data-testid="job-apply-btn"
                 >
@@ -300,58 +301,48 @@ export default function JobDetail() {
                 >
                   <div>
                     <label className="text-xs uppercase tracking-[0.18em] text-neutral-500 font-semibold">
-                      Cover letter
+                      Proposal
                     </label>
                     <textarea
                       required
                       minLength={20}
-                      value={coverLetter}
-                      onChange={(e) => setCoverLetter(e.target.value)}
+                      value={proposal}
+                      onChange={(e) => setProposal(e.target.value)}
                       rows={4}
                       placeholder="Tell the client why you're a great fit…"
                       className="mt-2 w-full border skl-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-black transition"
-                      data-testid="apply-cover-letter"
+                      data-testid="apply-proposal"
                     />
                   </div>
                   <div>
                     <label className="text-xs uppercase tracking-[0.18em] text-neutral-500 font-semibold">
-                      Expected budget
+                      Bid amount
                     </label>
                     <input
                       required
                       type="text"
-                      value={expectedBudget}
-                      onChange={(e) => setExpectedBudget(e.target.value)}
-                      placeholder="e.g. ₹10,000"
+                      inputMode="decimal"
+                      value={bidAmount}
+                      onChange={(e) => setBidAmount(e.target.value)}
+                      placeholder="e.g. 10000"
                       className="mt-2 w-full border skl-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-black transition"
-                      data-testid="apply-expected-budget"
+                      data-testid="apply-bid-amount"
                     />
                   </div>
                   <div>
                     <label className="text-xs uppercase tracking-[0.18em] text-neutral-500 font-semibold">
-                      Estimated delivery time
+                      Estimated delivery days
                     </label>
                     <input
                       required
-                      type="text"
-                      value={deliveryTime}
-                      onChange={(e) => setDeliveryTime(e.target.value)}
-                      placeholder="e.g. 2 weeks"
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={estimatedDays}
+                      onChange={(e) => setEstimatedDays(e.target.value)}
+                      placeholder="e.g. 14"
                       className="mt-2 w-full border skl-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-black transition"
-                      data-testid="apply-delivery-time"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs uppercase tracking-[0.18em] text-neutral-500 font-semibold">
-                      Portfolio link <span className="normal-case tracking-normal text-neutral-400">(optional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={portfolioUrl}
-                      onChange={(e) => setPortfolioUrl(e.target.value)}
-                      placeholder="https://…"
-                      className="mt-2 w-full border skl-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-black transition"
-                      data-testid="apply-portfolio-url"
+                      data-testid="apply-estimated-days"
                     />
                   </div>
 

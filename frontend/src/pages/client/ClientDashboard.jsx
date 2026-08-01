@@ -7,15 +7,12 @@ import EmptyState from "@/components/EmptyState";
 import StatCard from "@/components/StatCard";
 import JobStatusBadge from "@/components/JobStatusBadge";
 import { ListRowSkeleton, StatSkeletonGrid } from "@/components/Skeleton";
-import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { btnGhost, btnPrimary } from "@/lib/uiClasses";
 import {
   displayApplicationStatus,
-  listMockApplicants,
-  mockClientApplicationStats,
-  subscribeApplications,
-} from "@/lib/mockApplications";
+  fetchClientApplications,
+} from "@/lib/applicationsService";
 import { fetchMyJobs } from "@/lib/jobsService";
 
 export default function ClientDashboard() {
@@ -48,67 +45,40 @@ export default function ClientDashboard() {
     fetchMyJobs(user?.id)
       .then((list) => {
         applyJobs(list);
-        const as_ = mockClientApplicationStats();
-        setStats((prev) => ({
-          ...prev,
-          applications: as_.applications,
-          hired: as_.hired,
-        }));
       })
       .catch(() => {
         applyJobs([]);
       });
 
   const loadApps = () =>
-    api
-      .get("/applicants/all")
-      .then((r) => {
-        const remote = Array.isArray(r.data) ? r.data : [];
-        const local = listMockApplicants();
-        const remoteIds = new Set(remote.map((a) => a.id));
-        const merged = [...remote, ...local.filter((a) => !remoteIds.has(a.id))];
-        setApps(merged.slice(0, 5));
+    fetchClientApplications()
+      .then((list) => {
+        setApps(list.slice(0, 5));
         setStats((prev) => ({
           ...prev,
-          applications:
-            merged.filter((a) => displayApplicationStatus(a.status) === "Pending").length ||
-            merged.length,
+          applications: list.filter((a) => displayApplicationStatus(a.status) === "Pending").length,
+          hired: list.filter((a) => displayApplicationStatus(a.status) === "Accepted").length,
         }));
       })
       .catch(() => {
-        const local = listMockApplicants();
-        setApps(local.slice(0, 5));
-        const s = mockClientApplicationStats();
+        setApps([]);
         setStats((prev) => ({
           ...prev,
-          applications: local.filter((a) => displayApplicationStatus(a.status) === "Pending").length,
-          hired: s.hired,
+          applications: 0,
+          hired: 0,
         }));
       });
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    const dash = api
-      .get("/dashboard/client")
-      .then((r) => {
-        if (cancelled) return;
-        setStats((prev) => ({
-          ...prev,
-          ...r.data,
-          closed_jobs: prev.closed_jobs || 0,
-        }));
-      })
-      .catch(() => {});
 
-    Promise.allSettled([dash, loadJobs(), loadApps()]).finally(() => {
+    Promise.allSettled([loadJobs(), loadApps()]).finally(() => {
       if (!cancelled) setLoading(false);
     });
 
-    const unsubA = subscribeApplications(loadApps);
     return () => {
       cancelled = true;
-      unsubA();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);

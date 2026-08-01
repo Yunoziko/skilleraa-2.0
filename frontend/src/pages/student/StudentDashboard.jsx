@@ -13,11 +13,9 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import {
   displayApplicationStatus,
-  listMyMockApplications,
-  mockStudentApplicationStats,
-  resolveApplicantStudent,
-  subscribeApplications,
-} from "@/lib/mockApplications";
+  fetchMyApplications,
+  studentApplicationStats,
+} from "@/lib/applicationsService";
 import {
   listMockSavedJobs,
   listMockSavedIds,
@@ -28,7 +26,6 @@ import { fetchJobs } from "@/lib/jobsService";
 
 export default function StudentDashboard() {
   const { user } = useAuth();
-  const student = resolveApplicantStudent(user);
   const [stats, setStats] = useState({ applications: 0, saved: 0, shortlisted: 0, hired: 0, profile_completion: 0 });
   const [applications, setApplications] = useState([]);
   const [recommended, setRecommended] = useState([]);
@@ -37,34 +34,18 @@ export default function StudentDashboard() {
   const [loading, setLoading] = useState(true);
 
   const loadApplications = () =>
-    api
-      .get("/applications/mine")
-      .then((r) => {
-        const remote = Array.isArray(r.data) ? r.data : [];
-        const local = listMyMockApplications(student.id);
-        const remoteIds = new Set(remote.map((a) => a.id));
-        const merged = [...remote, ...local.filter((a) => !remoteIds.has(a.id))];
-        setApplications(merged.slice(0, 4));
-        if (remote.length === 0 && local.length > 0) {
-          const s = mockStudentApplicationStats(student.id);
-          setStats((prev) => ({
-            ...prev,
-            applications: s.applications,
-            shortlisted: s.accepted,
-            hired: s.accepted,
-          }));
-        }
-      })
-      .catch(() => {
-        const local = listMyMockApplications(student.id);
-        setApplications(local.slice(0, 4));
-        const s = mockStudentApplicationStats(student.id);
+    fetchMyApplications()
+      .then((list) => {
+        setApplications(list.slice(0, 4));
         setStats((prev) => ({
           ...prev,
-          applications: s.applications,
-          shortlisted: s.accepted,
-          hired: s.accepted,
+          applications: list.length,
+          shortlisted: list.filter((a) => a.status === "accepted").length,
+          hired: list.filter((a) => a.status === "accepted").length,
         }));
+      })
+      .catch(() => {
+        setApplications([]);
       });
 
   const loadSaved = () => {
@@ -105,21 +86,28 @@ export default function StudentDashboard() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    const dash = api
-      .get("/dashboard/student")
-      .then((r) => {
-        if (!cancelled) setStats(r.data);
+    const dash = studentApplicationStats()
+      .then((s) => {
+        if (cancelled) return;
+        setStats((prev) => ({
+          ...prev,
+          applications: s.applications,
+          shortlisted: s.accepted,
+          hired: s.accepted,
+          profile_completion: prev.profile_completion || 40,
+          saved: prev.saved || listMockSavedJobs().length,
+        }));
       })
       .catch(() => {
         if (cancelled) return;
-        const s = mockStudentApplicationStats(student.id);
-        setStats({
-          applications: s.applications,
+        setStats((prev) => ({
+          ...prev,
+          applications: 0,
+          shortlisted: 0,
+          hired: 0,
+          profile_completion: prev.profile_completion || 40,
           saved: listMockSavedJobs().length,
-          shortlisted: s.accepted,
-          hired: s.accepted,
-          profile_completion: 40,
-        });
+        }));
       });
     const rec = fetchJobs()
       .then((list) => {
@@ -133,15 +121,13 @@ export default function StudentDashboard() {
       if (!cancelled) setLoading(false);
     });
 
-    const unsubA = subscribeApplications(loadApplications);
     const unsubS = subscribeSavedJobs(loadSaved);
     return () => {
       cancelled = true;
-      unsubA();
       unsubS();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [student.id]);
+  }, [user?.id]);
 
   return (
     <DashboardShell title={`Welcome, ${user?.name?.split(" ")[0] || "there"}`}>
