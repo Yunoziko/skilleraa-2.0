@@ -12,13 +12,29 @@ import {
   updateApplicationStatus,
 } from "@/lib/applicationsService";
 import { fetchMyJobs } from "@/lib/jobsService";
+import {
+  fetchPaymentsForApplications,
+  formatINR,
+  payForApplication,
+} from "@/lib/paymentsService";
+import { formatApiError } from "@/lib/api";
 
 export default function Applicants() {
   const [apps, setApps] = useState([]);
+  const [payments, setPayments] = useState({});
   const [loading, setLoading] = useState(true);
   const [jobs, setJobs] = useState([]);
   const [selectedJob, setSelectedJob] = useState("");
   const [busyId, setBusyId] = useState(null);
+
+  const loadPayments = async (applications) => {
+    try {
+      const map = await fetchPaymentsForApplications((applications || []).map((a) => a.id));
+      setPayments(map);
+    } catch {
+      setPayments({});
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -29,6 +45,7 @@ export default function Applicants() {
       ]);
       setJobs(jobList);
       setApps(applications);
+      await loadPayments(applications);
     } catch (e) {
       toast.error(e?.message || "Failed to load applicants");
       setApps([]);
@@ -69,7 +86,7 @@ export default function Applicants() {
     try {
       const updated = await updateApplicationStatus(id, "accepted");
       setApps((prev) => prev.map((a) => (a.id === id ? { ...a, ...updated, status: "accepted" } : a)));
-      toast.success("Application accepted — chat is now enabled");
+      toast.success("Application accepted — you can pay and chat now");
     } catch (e) {
       toast.error(e?.message || "Failed to accept");
     } finally {
@@ -85,6 +102,21 @@ export default function Applicants() {
       toast.success("Application rejected");
     } catch (e) {
       toast.error(e?.message || "Failed to reject");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const payNow = async (application) => {
+    setBusyId(application.id);
+    try {
+      await payForApplication(application.id);
+      toast.success("Payment successful");
+      await loadPayments(apps);
+    } catch (e) {
+      if (e?.message === "Payment cancelled") return;
+      const msg = formatApiError(e?.response?.data?.detail || e?.message);
+      toast.error(msg);
     } finally {
       setBusyId(null);
     }
@@ -132,6 +164,8 @@ export default function Applicants() {
           {filtered.map((a) => {
             const label = displayApplicationStatus(a.status);
             const chatOn = isChatEnabled(a.status);
+            const payment = payments[a.id];
+            const paid = payment?.status === "paid";
             return (
               <div key={a.id} className="border skl-border rounded-2xl p-5" data-testid={`applicant-${a.id}`}>
                 <div className="flex items-start justify-between gap-4">
@@ -163,6 +197,11 @@ export default function Applicants() {
                         {a.delivery_time && (
                           <span className="border skl-border rounded-full px-2.5 py-1">Delivery: {a.delivery_time}</span>
                         )}
+                        {paid && (
+                          <span className="border skl-border rounded-full px-2.5 py-1" data-testid={`applicant-${a.id}-paid`}>
+                            Paid {formatINR(payment.amount)}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -171,10 +210,21 @@ export default function Applicants() {
                       {label}
                     </span>
                     <div className="flex flex-wrap gap-1 justify-end">
+                      {chatOn && !paid && (
+                        <button
+                          type="button"
+                          disabled={busyId === a.id}
+                          onClick={() => payNow(a)}
+                          className="text-[11px] px-3 py-1.5 rounded-full bg-black text-white hover:bg-black/90 disabled:opacity-60"
+                          data-testid={`applicant-${a.id}-pay`}
+                        >
+                          Pay Now
+                        </button>
+                      )}
                       {chatOn ? (
                         <Link
                           to={`/client/messages?c=${a.id}`}
-                          className="text-[11px] px-3 py-1.5 rounded-full bg-black text-white hover:bg-black/90"
+                          className="text-[11px] px-3 py-1.5 rounded-full border skl-border hover:bg-neutral-50"
                           data-testid={`applicant-${a.id}-message`}
                         >
                           Message

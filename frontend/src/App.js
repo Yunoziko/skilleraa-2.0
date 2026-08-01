@@ -27,6 +27,7 @@ import StudentProfile from "@/pages/student/StudentProfile";
 import StudentProfileEdit from "@/pages/student/StudentProfileEdit";
 import StudentReviews from "@/pages/student/StudentReviews";
 import StudentProjects from "@/pages/student/StudentProjects";
+import Wallet from "@/pages/student/Wallet";
 
 import ClientDashboard from "@/pages/client/ClientDashboard";
 import PostJob from "@/pages/client/PostJob";
@@ -193,6 +194,14 @@ function App() {
               element={
                 <ProtectedRoute role="student">
                   <StudentProjects />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/student/wallet"
+              element={
+                <ProtectedRoute role="student">
+                  <Wallet />
                 </ProtectedRoute>
               }
             />

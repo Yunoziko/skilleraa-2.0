@@ -1177,6 +1177,11 @@ async def on_startup():
         logger.warning(
             "SUPABASE_SERVICE_ROLE_KEY is a placeholder; role sync to app_metadata will be skipped until set."
         )
+    if not razorpay_configured():
+        logger.warning(
+            "Razorpay is not configured (RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET). "
+            "Payment endpoints will return 503 until set."
+        )
     await db.users.create_index("email", unique=True)
     await db.users.create_index("supabase_user_id", unique=True, sparse=True)
     await db.jobs.create_index([("status", 1), ("created_at", -1)])
@@ -1198,6 +1203,23 @@ async def on_shutdown():
 @api.get("/")
 async def root():
     return {"service": "skilleraa", "status": "ok"}
+
+
+# --- Razorpay payments (Test Mode) ---
+try:
+    from payments_razorpay import register_payment_routes, razorpay_configured  # noqa: E402
+except ImportError:
+    from backend.payments_razorpay import register_payment_routes, razorpay_configured  # noqa: E402
+
+register_payment_routes(
+    api,
+    decode_token=decode_supabase_access_token,
+    supabase_url_getter=lambda: SUPABASE_URL,
+    service_key_getter=lambda: None
+    if _is_placeholder_env(SUPABASE_SERVICE_ROLE_KEY)
+    else SUPABASE_SERVICE_ROLE_KEY,
+    is_supabase_ready=is_supabase_configured,
+)
 
 
 app.include_router(api)

@@ -17,6 +17,7 @@ import {
   MessageSquare,
   Star,
   FolderKanban,
+  Wallet,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import NotificationBell from "@/components/NotificationBell";
@@ -29,6 +30,7 @@ const studentNav = [
   { to: "/student/applied", label: "Applied Jobs", icon: FileText },
   { to: "/student/saved", label: "Saved Jobs", icon: Bookmark },
   { to: "/student/projects", label: "Projects", icon: FolderKanban },
+  { to: "/student/wallet", label: "Wallet", icon: Wallet },
   { to: "/student/reviews", label: "Reviews", icon: Star },
   { to: "/student/messages", label: "Messages", icon: MessageSquare },
   { to: "/student/notifications", label: "Notifications", icon: Bell },
