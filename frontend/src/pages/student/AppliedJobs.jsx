@@ -8,11 +8,22 @@ import { toast } from "sonner";
 import {
   displayApplicationStatus,
   fetchMyApplications,
+  isChatEnabled,
+  subscribeApplications,
 } from "@/lib/applicationsService";
 
 export default function AppliedJobs() {
   const [apps, setApps] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const load = () =>
+    fetchMyApplications()
+      .then((list) => setApps(list))
+      .catch((e) => {
+        toast.error(e?.message || "Failed to load applications");
+        setApps([]);
+      })
+      .finally(() => setLoading(false));
 
   useEffect(() => {
     let active = true;
@@ -29,8 +40,32 @@ export default function AppliedJobs() {
       .finally(() => {
         if (active) setLoading(false);
       });
+
+    const unsub = subscribeApplications((payload) => {
+      const row = payload?.new;
+      if (!row?.id) {
+        load();
+        return;
+      }
+      setApps((prev) => {
+        const idx = prev.findIndex((a) => a.id === row.id);
+        if (idx === -1) {
+          load();
+          return prev;
+        }
+        const next = prev.slice();
+        const prevStatus = next[idx].status;
+        next[idx] = { ...next[idx], status: row.status };
+        if (isChatEnabled(row.status) && !isChatEnabled(prevStatus)) {
+          toast.success("Application accepted — you can message the client now");
+        }
+        return next;
+      });
+    });
+
     return () => {
       active = false;
+      unsub();
     };
   }, []);
 
@@ -50,6 +85,7 @@ export default function AppliedJobs() {
         <div className="border skl-border rounded-2xl divide-y divide-neutral-200 overflow-hidden">
           {apps.map((a) => {
             const jobPath = a.job?.id ? `/jobs/${a.job.id}` : a.job_id ? `/jobs/${a.job_id}` : null;
+            const chatOn = isChatEnabled(a.status);
             return (
               <div
                 key={a.id}
@@ -78,13 +114,22 @@ export default function AppliedJobs() {
                   </div>
                 )}
                 <div className="ml-3 shrink-0 flex items-center gap-2">
-                  <Link
-                    to={`/student/messages?c=${a.id}`}
-                    className="text-[10px] uppercase tracking-widest font-semibold border skl-border px-2 py-1 rounded-full hover:bg-neutral-50"
-                    data-testid={`applied-message-${a.id}`}
-                  >
-                    Message
-                  </Link>
+                  {chatOn ? (
+                    <Link
+                      to={`/student/messages?c=${a.id}`}
+                      className="text-[10px] uppercase tracking-widest font-semibold border skl-border px-2 py-1 rounded-full hover:bg-neutral-50"
+                      data-testid={`applied-message-${a.id}`}
+                    >
+                      Message
+                    </Link>
+                  ) : (
+                    <span
+                      className="text-[10px] uppercase tracking-widest font-semibold text-neutral-400 px-2 py-1"
+                      data-testid={`applied-chat-locked-${a.id}`}
+                    >
+                      Chat locked
+                    </span>
+                  )}
                   <span className="text-[10px] uppercase tracking-widest font-semibold border skl-border px-2 py-1 rounded-full">
                     {displayApplicationStatus(a.status)}
                   </span>

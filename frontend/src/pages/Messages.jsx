@@ -5,6 +5,7 @@ import ConversationList from "@/components/chat/ConversationList";
 import ChatWindow from "@/components/chat/ChatWindow";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
+import { subscribeApplications } from "@/lib/applicationsService";
 import {
   applyRealtimeToConversations,
   fetchConversations,
@@ -90,10 +91,10 @@ export default function Messages() {
 
       if (!access) {
         setMessages([]);
-        setThreadError("You do not have access to this conversation.");
+        setThreadError("Chat unlocks after the application is accepted.");
         setActiveId("");
         setParams({}, { replace: true });
-        toast.error("Unauthorized conversation");
+        toast.error("Chat is only available for accepted applications");
         return;
       }
 
@@ -132,11 +133,11 @@ export default function Messages() {
     refreshList();
   }, [user?.id, query, refreshList]);
 
-  // Single shared realtime subscription for this page
+  // Shared realtime: messages + application accept/reject (unlocks chat)
   useEffect(() => {
     if (!user?.id) return undefined;
 
-    return subscribeMessages((payload) => {
+    const unsubMessages = subscribeMessages((payload) => {
       const event = payload?.eventType || payload?.event;
       const row = payload?.new;
       const uid = uidRef.current;
@@ -175,7 +176,35 @@ export default function Messages() {
         );
       }
     });
-  }, [user?.id]);
+
+    const unsubApps = subscribeApplications((payload) => {
+      const row = payload?.new;
+      const event = payload?.eventType || payload?.event;
+      if (event !== "UPDATE" && event !== "INSERT") return;
+      // Accept unlocks a conversation; reject removes it from inbox
+      refreshList().then((list) => {
+        const openId = activeIdRef.current;
+        if (!openId) return;
+        const stillAllowed = (list || []).some((c) => c.id === openId);
+        if (!stillAllowed) {
+          setActiveId("");
+          setMessages([]);
+          setThreadError(
+            row?.status === "rejected"
+              ? "This application was rejected. Chat is unavailable."
+              : "Chat unlocks after the application is accepted."
+          );
+        } else if (row?.id === openId && String(row.status).toLowerCase() === "accepted") {
+          openThread(openId);
+        }
+      });
+    });
+
+    return () => {
+      unsubMessages();
+      unsubApps();
+    };
+  }, [user?.id, refreshList, openThread]);
 
   // Sync active id from URL
   useEffect(() => {
@@ -276,8 +305,8 @@ export default function Messages() {
 
   const emptyDescription =
     user?.role === "client"
-      ? "When freelancers apply to your jobs, you can message them here."
-      : "Apply to a job to start a conversation with the client.";
+      ? "Accept an applicant to unlock chat with them here."
+      : "Chat unlocks here after a client accepts your application.";
 
   return (
     <DashboardShell title="Messages">

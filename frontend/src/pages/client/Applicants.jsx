@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import {
   displayApplicationStatus,
   fetchClientApplications,
+  isChatEnabled,
+  subscribeApplications,
   updateApplicationStatus,
 } from "@/lib/applicationsService";
 import { fetchMyJobs } from "@/lib/jobsService";
@@ -37,6 +39,24 @@ export default function Applicants() {
 
   useEffect(() => {
     load();
+    return subscribeApplications((payload) => {
+      const row = payload?.new;
+      if (!row?.id) {
+        load();
+        return;
+      }
+      setApps((prev) => {
+        const idx = prev.findIndex((a) => a.id === row.id);
+        if (idx === -1) {
+          load();
+          return prev;
+        }
+        const next = prev.slice();
+        next[idx] = { ...next[idx], status: row.status };
+        return next;
+      });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const filtered = useMemo(() => {
@@ -47,9 +67,9 @@ export default function Applicants() {
   const accept = async (id) => {
     setBusyId(id);
     try {
-      await updateApplicationStatus(id, "accepted");
-      setApps((prev) => prev.map((a) => (a.id === id ? { ...a, status: "accepted" } : a)));
-      toast.success("Application accepted");
+      const updated = await updateApplicationStatus(id, "accepted");
+      setApps((prev) => prev.map((a) => (a.id === id ? { ...a, ...updated, status: "accepted" } : a)));
+      toast.success("Application accepted — chat is now enabled");
     } catch (e) {
       toast.error(e?.message || "Failed to accept");
     } finally {
@@ -60,8 +80,8 @@ export default function Applicants() {
   const reject = async (id) => {
     setBusyId(id);
     try {
-      await updateApplicationStatus(id, "rejected");
-      setApps((prev) => prev.map((a) => (a.id === id ? { ...a, status: "rejected" } : a)));
+      const updated = await updateApplicationStatus(id, "rejected");
+      setApps((prev) => prev.map((a) => (a.id === id ? { ...a, ...updated, status: "rejected" } : a)));
       toast.success("Application rejected");
     } catch (e) {
       toast.error(e?.message || "Failed to reject");
@@ -111,6 +131,7 @@ export default function Applicants() {
         <div className="space-y-3">
           {filtered.map((a) => {
             const label = displayApplicationStatus(a.status);
+            const chatOn = isChatEnabled(a.status);
             return (
               <div key={a.id} className="border skl-border rounded-2xl p-5" data-testid={`applicant-${a.id}`}>
                 <div className="flex items-start justify-between gap-4">
@@ -150,13 +171,19 @@ export default function Applicants() {
                       {label}
                     </span>
                     <div className="flex flex-wrap gap-1 justify-end">
-                      <Link
-                        to={`/client/messages?c=${a.id}`}
-                        className="text-[11px] px-3 py-1.5 rounded-full border skl-border hover:bg-neutral-50"
-                        data-testid={`applicant-${a.id}-message`}
-                      >
-                        Message
-                      </Link>
+                      {chatOn ? (
+                        <Link
+                          to={`/client/messages?c=${a.id}`}
+                          className="text-[11px] px-3 py-1.5 rounded-full bg-black text-white hover:bg-black/90"
+                          data-testid={`applicant-${a.id}-message`}
+                        >
+                          Message
+                        </Link>
+                      ) : label === "Pending" ? (
+                        <span className="text-[10px] text-neutral-400 px-1 py-1.5">
+                          Chat after accept
+                        </span>
+                      ) : null}
                       {label === "Pending" && (
                         <>
                           <button

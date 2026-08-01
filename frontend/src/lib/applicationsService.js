@@ -22,6 +22,12 @@ export function displayApplicationStatus(status) {
   return "Pending";
 }
 
+/** Chat is only enabled after the client accepts the application. */
+export function isChatEnabled(status) {
+  const s = String(status || "").toLowerCase();
+  return s === "accepted" || s === "hired";
+}
+
 /** Parse bid amounts like "10000", "₹10,000", "10.5k" into a number. */
 export function parseBidAmount(raw) {
   if (typeof raw === "number" && Number.isFinite(raw)) return raw;
@@ -225,5 +231,51 @@ export async function studentApplicationStats() {
     pending: list.filter((a) => a.status === "pending").length,
     accepted: list.filter((a) => a.status === "accepted").length,
     rejected: list.filter((a) => a.status === "rejected").length,
+  };
+}
+
+/** @type {Set<(payload: object) => void>} */
+const applicationListeners = new Set();
+/** @type {import('@supabase/supabase-js').RealtimeChannel | null} */
+let applicationsChannel = null;
+let applicationsChannelRefCount = 0;
+
+/**
+ * Shared Realtime subscription for application row changes (accept/reject).
+ * Returns unsubscribe.
+ */
+export function subscribeApplications(onChange) {
+  if (!supabase || !isSupabaseConfigured) return () => {};
+  if (typeof onChange !== "function") return () => {};
+
+  applicationListeners.add(onChange);
+  applicationsChannelRefCount += 1;
+
+  if (!applicationsChannel) {
+    applicationsChannel = supabase
+      .channel("skl-applications-shared")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "applications" },
+        (payload) => {
+          applicationListeners.forEach((fn) => {
+            try {
+              fn(payload);
+            } catch {
+              // ignore listener errors
+            }
+          });
+        }
+      )
+      .subscribe();
+  }
+
+  return () => {
+    applicationListeners.delete(onChange);
+    applicationsChannelRefCount = Math.max(0, applicationsChannelRefCount - 1);
+    if (applicationsChannelRefCount === 0 && applicationsChannel) {
+      supabase.removeChannel(applicationsChannel);
+      applicationsChannel = null;
+    }
   };
 }

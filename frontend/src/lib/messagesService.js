@@ -7,6 +7,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import {
   fetchClientApplications,
   fetchMyApplications,
+  isChatEnabled,
 } from "@/lib/applicationsService";
 
 const MESSAGE_COLUMNS =
@@ -93,7 +94,7 @@ function isParticipant(app, uid) {
   return app.freelancer_id === uid || clientId === uid;
 }
 
-/** Applications the current user may chat on (RLS-scoped). */
+/** Accepted applications the current user may chat on (RLS-scoped). */
 export async function fetchChatApplications() {
   const uid = await currentUserId();
   const client = assertClient();
@@ -105,20 +106,21 @@ export async function fetchChatApplications() {
   if (error) throw error;
 
   const role = profile?.role;
-  const apps =
+  const all =
     role === "client" ? await fetchClientApplications() : await fetchMyApplications();
-  return { uid, role, apps: apps || [] };
+  const apps = (all || []).filter((a) => isChatEnabled(a.status));
+  return { uid, role, apps };
 }
 
 /**
  * Resolve a conversation the user is allowed to access.
- * Returns null when the application does not exist or user is not a party.
+ * Requires accepted application + participant membership.
  */
 export async function resolveConversationAccess(applicationId) {
   if (!applicationId) return null;
   const { uid, apps } = await fetchChatApplications();
   const app = apps.find((a) => a.id === applicationId);
-  if (!app || !isParticipant(app, uid)) return null;
+  if (!app || !isChatEnabled(app.status) || !isParticipant(app, uid)) return null;
   const participant = participantFromApplication(app, uid);
   return {
     uid,
@@ -238,6 +240,7 @@ export async function sendChatMessage(applicationId, text) {
       `
       id,
       freelancer_id,
+      status,
       jobs!applications_job_id_fkey (
         id,
         client_id
@@ -249,6 +252,9 @@ export async function sendChatMessage(applicationId, text) {
 
   if (appError) throw appError;
   if (!app) throw new Error("You can only chat on your applications.");
+  if (!isChatEnabled(app.status)) {
+    throw new Error("Chat unlocks after the application is accepted.");
+  }
 
   const clientId = app.jobs?.client_id;
   const freelancerId = app.freelancer_id;
