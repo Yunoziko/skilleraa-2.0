@@ -15,7 +15,7 @@ export async function getProfile(userId) {
   const client = assertClient();
   const { data, error } = await client
     .from("profiles")
-    .select("id, full_name, role, avatar_url, created_at")
+    .select("id, full_name, role, avatar_url, resume_url, portfolio_url, created_at")
     .eq("id", userId)
     .maybeSingle();
   if (error) throw error;

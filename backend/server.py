@@ -1221,6 +1221,22 @@ register_payment_routes(
     is_supabase_ready=is_supabase_configured,
 )
 
+# --- Supabase Storage uploads (resume / portfolio) ---
+try:
+    from storage_uploads import register_storage_routes  # noqa: E402
+except ImportError:
+    from backend.storage_uploads import register_storage_routes  # noqa: E402
+
+register_storage_routes(
+    api,
+    decode_token=decode_supabase_access_token,
+    supabase_url_getter=lambda: SUPABASE_URL,
+    service_key_getter=lambda: None
+    if _is_placeholder_env(SUPABASE_SERVICE_ROLE_KEY)
+    else SUPABASE_SERVICE_ROLE_KEY,
+    is_supabase_ready=is_supabase_configured,
+)
+
 
 app.include_router(api)
 

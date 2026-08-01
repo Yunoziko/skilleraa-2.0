@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import DashboardShell from "@/components/layout/DashboardShell";
+import FileUploadField from "@/components/FileUploadField";
 import { useAuth } from "@/context/AuthContext";
 import api from "@/lib/api";
 import { toast } from "sonner";
@@ -9,6 +10,7 @@ import {
   getMyMockProfile,
   saveMockProfile,
 } from "@/lib/mockProfiles";
+import { fetchProfileFileFields, filenameFromPath } from "@/lib/storageService";
 
 const AVAILABILITY = [
   { value: "available", label: "Available" },
@@ -30,13 +32,18 @@ export default function StudentProfileEdit() {
     experience: "",
     portfolio_links: "",
     resume_filename: "",
+    resume_url: "",
+    portfolio_file_url: "",
+    portfolio_filename: "",
     availability: "available",
   });
 
   useEffect(() => {
+    let active = true;
     const local = getMyMockProfile("student");
     const src = user && user !== false ? { ...local, ...user } : local;
-    setForm({
+    setForm((prev) => ({
+      ...prev,
       name: src.name || "",
       headline: src.headline || "",
       bio: src.bio || "",
@@ -46,8 +53,30 @@ export default function StudentProfileEdit() {
       experience: src.experience || local.experience || "",
       portfolio_links: (src.portfolio_links || (src.portfolio_url ? [src.portfolio_url] : [])).join("\n"),
       resume_filename: src.resume_filename || local.resume_filename || "",
+      resume_url: src.resume_url || "",
+      portfolio_file_url: "",
+      portfolio_filename: "",
       availability: src.availability || "available",
-    });
+    }));
+
+    if (user?.id) {
+      fetchProfileFileFields(user.id)
+        .then((files) => {
+          if (!active) return;
+          setForm((prev) => ({
+            ...prev,
+            resume_url: files.resume_url || prev.resume_url,
+            resume_filename:
+              prev.resume_filename || filenameFromPath(files.resume_url) || "",
+            portfolio_file_url: files.portfolio_url || prev.portfolio_file_url,
+            portfolio_filename: filenameFromPath(files.portfolio_url) || prev.portfolio_filename,
+          }));
+        })
+        .catch(() => {});
+    }
+    return () => {
+      active = false;
+    };
   }, [user]);
 
   const save = async (e) => {
@@ -66,9 +95,10 @@ export default function StudentProfileEdit() {
       skills,
       education: form.education.trim(),
       experience: form.experience.trim(),
-      portfolio_url: portfolio_links[0] || "",
+      portfolio_url: form.portfolio_file_url || portfolio_links[0] || "",
       portfolio_links,
-      resume_filename: form.resume_filename.trim(),
+      resume_url: form.resume_url || "",
+      resume_filename: form.resume_filename.trim() || filenameFromPath(form.resume_url),
       availability: form.availability,
       role: "student",
       id: (user && user !== false && user.id) || DEMO_STUDENT_PROFILE_ID,
@@ -180,12 +210,47 @@ export default function StudentProfileEdit() {
             />
           </div>
 
-          <Field
-            label="Resume filename (placeholder)"
-            value={form.resume_filename}
-            onChange={(v) => setForm({ ...form, resume_filename: v })}
-            placeholder="Your_Name_Resume.pdf"
-            testid="profile-resume-name"
+          <FileUploadField
+            kind="resume"
+            label="Resume"
+            currentPath={form.resume_url}
+            currentFilename={form.resume_filename}
+            testid="profile-resume-upload"
+            onUploaded={(result) => {
+              setForm((prev) => ({
+                ...prev,
+                resume_url: result.path,
+                resume_filename: result.filename,
+              }));
+              saveMockProfile({
+                ...(user && user !== false ? user : getMyMockProfile("student")),
+                resume_url: result.path,
+                resume_filename: result.filename,
+                role: "student",
+              });
+              toast.success("Resume uploaded");
+            }}
+          />
+
+          <FileUploadField
+            kind="portfolio"
+            label="Portfolio file"
+            currentPath={form.portfolio_file_url}
+            currentFilename={form.portfolio_filename}
+            testid="profile-portfolio-upload"
+            onUploaded={(result) => {
+              setForm((prev) => ({
+                ...prev,
+                portfolio_file_url: result.path,
+                portfolio_filename: result.filename,
+              }));
+              saveMockProfile({
+                ...(user && user !== false ? user : getMyMockProfile("student")),
+                portfolio_url: result.path,
+                role: "student",
+              });
+              toast.success("Portfolio uploaded");
+            }}
           />
 
           <div className="flex items-center gap-3 pt-2">
