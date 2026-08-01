@@ -8,6 +8,7 @@ import {
   displayApplicationStatus,
   fetchClientApplications,
   isChatEnabled,
+  markApplicationCompleted,
   subscribeApplications,
   updateApplicationStatus,
 } from "@/lib/applicationsService";
@@ -102,6 +103,19 @@ export default function Applicants() {
       toast.success("Application rejected");
     } catch (e) {
       toast.error(e?.message || "Failed to reject");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const complete = async (id) => {
+    setBusyId(id);
+    try {
+      const updated = await markApplicationCompleted(id);
+      setApps((prev) => prev.map((a) => (a.id === id ? { ...a, ...updated, status: "completed" } : a)));
+      toast.success("Marked completed — reviews unlocked");
+    } catch (e) {
+      toast.error(e?.message || "Failed to mark complete");
     } finally {
       setBusyId(null);
     }
@@ -220,6 +234,26 @@ export default function Applicants() {
                         >
                           Pay Now
                         </button>
+                      )}
+                      {label === "Accepted" && (
+                        <button
+                          type="button"
+                          disabled={busyId === a.id}
+                          onClick={() => complete(a.id)}
+                          className="text-[11px] px-3 py-1.5 rounded-full border skl-border hover:bg-neutral-50 disabled:opacity-60"
+                          data-testid={`applicant-${a.id}-complete`}
+                        >
+                          Mark complete
+                        </button>
+                      )}
+                      {label === "Completed" && (
+                        <Link
+                          to="/client/reviews"
+                          className="text-[11px] px-3 py-1.5 rounded-full border skl-border hover:bg-neutral-50"
+                          data-testid={`applicant-${a.id}-review`}
+                        >
+                          Leave review
+                        </Link>
                       )}
                       {chatOn ? (
                         <Link

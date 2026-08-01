@@ -13,19 +13,24 @@ function assertClient() {
   return supabase;
 }
 
-export const APPLICATION_STATUSES = ["pending", "accepted", "rejected"];
+export const APPLICATION_STATUSES = ["pending", "accepted", "rejected", "completed"];
 
 export function displayApplicationStatus(status) {
   const s = String(status || "pending").toLowerCase();
   if (s === "accepted" || s === "hired") return "Accepted";
   if (s === "rejected") return "Rejected";
+  if (s === "completed") return "Completed";
   return "Pending";
 }
 
-/** Chat is only enabled after the client accepts the application. */
+/** Chat is enabled after accept (and remains after completion). */
 export function isChatEnabled(status) {
   const s = String(status || "").toLowerCase();
-  return s === "accepted" || s === "hired";
+  return s === "accepted" || s === "hired" || s === "completed";
+}
+
+export function isApplicationCompleted(status) {
+  return String(status || "").toLowerCase() === "completed";
 }
 
 /** Parse bid amounts like "10000", "₹10,000", "10.5k" into a number. */
@@ -222,6 +227,11 @@ export async function updateApplicationStatus(id, status) {
     .single();
   if (error) throw error;
   return mapApplicationRow(data);
+}
+
+/** Client marks an accepted application as completed (unlocks reviews). */
+export async function markApplicationCompleted(id) {
+  return updateApplicationStatus(id, "completed");
 }
 
 export async function studentApplicationStats() {

@@ -4,22 +4,30 @@ import DashboardShell from "@/components/layout/DashboardShell";
 import { ListRowSkeleton } from "@/components/Skeleton";
 import { useAuth } from "@/context/AuthContext";
 import { ExternalLink, FileText, Pencil } from "lucide-react";
+import StarRating from "@/components/StarRating";
 import {
   DEMO_STUDENT_PROFILE_ID,
   displayAvailability,
   getMyMockProfile,
   subscribeProfiles,
 } from "@/lib/mockProfiles";
+import {
+  fetchProfileRating,
+  fetchReviewsForUser,
+  formatReviewDate,
+} from "@/lib/reviewsService";
 
 export default function StudentProfile() {
   const { user } = useAuth();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [ratingMeta, setRatingMeta] = useState({ average_rating: 0, review_count: 0 });
+  const [reviews, setReviews] = useState([]);
 
-  const load = () => {
+  const load = async () => {
     setLoading(true);
-    // Auth paused — always use local mock profile (merge email/name from auth if present)
     const local = getMyMockProfile("student");
+    const id = user?.id || local.id;
     if (user && user !== false) {
       setProfile({
         ...local,
@@ -33,12 +41,26 @@ export default function StudentProfile() {
         portfolio_url: user.portfolio_url || local.portfolio_url,
         resume_url: user.resume_url || local.resume_url,
         resume_filename: user.resume_filename || local.resume_filename,
-        id: user.id || local.id,
+        id,
       });
     } else {
       setProfile(local);
     }
-    setLoading(false);
+    try {
+      if (user?.id) {
+        const [meta, list] = await Promise.all([
+          fetchProfileRating(user.id),
+          fetchReviewsForUser(user.id),
+        ]);
+        setRatingMeta(meta);
+        setReviews(list.slice(0, 5));
+      }
+    } catch {
+      setRatingMeta({ average_rating: 0, review_count: 0 });
+      setReviews([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -100,6 +122,21 @@ export default function StudentProfile() {
             {profile.location && (
               <div className="mt-3 text-xs text-neutral-500">{profile.location}</div>
             )}
+            <div className="mt-5 border-t skl-border pt-4" data-testid="profile-rating-summary">
+              <div className="text-xs uppercase tracking-widest text-neutral-500 font-semibold">Average rating</div>
+              <div className="mt-2 flex items-center gap-2">
+                <span className="font-display text-2xl font-medium">
+                  {ratingMeta.review_count ? Number(ratingMeta.average_rating).toFixed(1) : "—"}
+                </span>
+                <StarRating value={ratingMeta.average_rating} size={14} readOnly />
+              </div>
+              <div className="text-xs text-neutral-500 mt-1">
+                {ratingMeta.review_count} review{ratingMeta.review_count === 1 ? "" : "s"}
+              </div>
+              <Link to="/student/reviews" className="mt-2 inline-flex text-xs underline underline-offset-4 text-neutral-600 hover:text-black">
+                See all reviews
+              </Link>
+            </div>
             <Link
               to={`/u/${profile.id || DEMO_STUDENT_PROFILE_ID}`}
               className="mt-5 inline-flex text-xs underline underline-offset-4 text-neutral-600 hover:text-black"
@@ -181,6 +218,27 @@ export default function StudentProfile() {
                 </div>
               </div>
             </div>
+          </Section>
+
+          <Section title="Reviews">
+            {reviews.length === 0 ? (
+              <EmptyHint text="No reviews yet." />
+            ) : (
+              <div className="space-y-3" data-testid="profile-reviews-list">
+                {reviews.map((r) => (
+                  <div key={r.id} className="border skl-border rounded-xl p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-sm font-medium">{r.reviewer_name}</div>
+                      <StarRating value={r.rating} size={12} readOnly />
+                    </div>
+                    <div className="text-xs text-neutral-500 mt-0.5">
+                      {r.project_name} · {formatReviewDate(r.created_at)}
+                    </div>
+                    <p className="mt-2 text-sm text-neutral-700 whitespace-pre-line">{r.review}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </Section>
         </div>
       </div>

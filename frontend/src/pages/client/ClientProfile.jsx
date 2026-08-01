@@ -6,18 +6,27 @@ import JobStatusBadge from "@/components/JobStatusBadge";
 import { ListRowSkeleton } from "@/components/Skeleton";
 import { useAuth } from "@/context/AuthContext";
 import { Briefcase, ExternalLink, Pencil } from "lucide-react";
+import StarRating from "@/components/StarRating";
 import {
+  DEMO_CLIENT_PROFILE_ID,
   getMyMockProfile,
   subscribeProfiles,
 } from "@/lib/mockProfiles";
 import { fetchMyJobs } from "@/lib/jobsService";
 import { isPubliclyListed } from "@/lib/jobStatus";
+import {
+  fetchProfileRating,
+  fetchReviewsForUser,
+  formatReviewDate,
+} from "@/lib/reviewsService";
 
 export default function ClientProfile() {
   const { user } = useAuth();
   const [profile, setProfile] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [ratingMeta, setRatingMeta] = useState({ average_rating: 0, review_count: 0 });
+  const [reviews, setReviews] = useState([]);
 
   const load = async () => {
     setLoading(true);
@@ -39,8 +48,18 @@ export default function ClientProfile() {
     try {
       const list = await fetchMyJobs(user?.id);
       setJobs(list.filter((j) => isPubliclyListed(j.status)).slice(0, 6));
+      if (user?.id) {
+        const [meta, listReviews] = await Promise.all([
+          fetchProfileRating(user.id),
+          fetchReviewsForUser(user.id),
+        ]);
+        setRatingMeta(meta);
+        setReviews(listReviews.slice(0, 5));
+      }
     } catch {
       setJobs([]);
+      setRatingMeta({ average_rating: 0, review_count: 0 });
+      setReviews([]);
     } finally {
       setLoading(false);
     }
@@ -113,6 +132,21 @@ export default function ClientProfile() {
             {profile.location && (
               <div className="mt-3 text-xs text-neutral-500">{profile.location}</div>
             )}
+            <div className="mt-5 border-t skl-border pt-4" data-testid="client-profile-rating-summary">
+              <div className="text-xs uppercase tracking-widest text-neutral-500 font-semibold">Average rating</div>
+              <div className="mt-2 flex items-center gap-2">
+                <span className="font-display text-2xl font-medium">
+                  {ratingMeta.review_count ? Number(ratingMeta.average_rating).toFixed(1) : "—"}
+                </span>
+                <StarRating value={ratingMeta.average_rating} size={14} readOnly />
+              </div>
+              <div className="text-xs text-neutral-500 mt-1">
+                {ratingMeta.review_count} review{ratingMeta.review_count === 1 ? "" : "s"}
+              </div>
+              <Link to="/client/reviews" className="mt-2 inline-flex text-xs underline underline-offset-4 text-neutral-600 hover:text-black">
+                See all reviews
+              </Link>
+            </div>
             <Link
               to={`/u/${profile.id || DEMO_CLIENT_PROFILE_ID}`}
               className="mt-5 inline-flex text-xs underline underline-offset-4 text-neutral-600 hover:text-black"
@@ -166,6 +200,31 @@ export default function ClientProfile() {
                 ))
               )}
             </div>
+          </div>
+
+          <div className="border skl-border rounded-2xl p-6">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-xs uppercase tracking-[0.18em] text-neutral-500 font-semibold">Reviews</div>
+              <Link to="/client/reviews" className="text-xs text-neutral-500 hover:text-black">All</Link>
+            </div>
+            {reviews.length === 0 ? (
+              <p className="mt-4 text-sm text-neutral-500">No reviews yet.</p>
+            ) : (
+              <div className="mt-4 space-y-3" data-testid="client-profile-reviews-list">
+                {reviews.map((r) => (
+                  <div key={r.id} className="border skl-border rounded-xl p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-sm font-medium">{r.reviewer_name}</div>
+                      <StarRating value={r.rating} size={12} readOnly />
+                    </div>
+                    <div className="text-xs text-neutral-500 mt-0.5">
+                      {r.project_name} · {formatReviewDate(r.created_at)}
+                    </div>
+                    <p className="mt-2 text-sm text-neutral-700 whitespace-pre-line">{r.review}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
