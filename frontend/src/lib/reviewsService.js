@@ -89,20 +89,14 @@ const REVIEW_SELECT = `
   created_at,
   reviewer:profiles!reviews_reviewer_profile_fkey (
     id,
-    full_name,
-    role,
-    avatar_url
+    full_name
   ),
   reviewee:profiles!reviews_reviewee_profile_fkey (
     id,
-    full_name,
-    role,
-    avatar_url
+    full_name
   ),
   applications!reviews_application_id_fkey (
     id,
-    status,
-    freelancer_id,
     jobs!applications_job_id_fkey (
       id,
       title,

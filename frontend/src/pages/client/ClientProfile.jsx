@@ -66,9 +66,14 @@ export default function ClientProfile() {
   };
 
   useEffect(() => {
-    load();
-    const unsubP = subscribeProfiles(load);
+    let active = true;
+    const run = () => {
+      if (active) load();
+    };
+    run();
+    const unsubP = subscribeProfiles(run);
     return () => {
+      active = false;
       unsubP();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

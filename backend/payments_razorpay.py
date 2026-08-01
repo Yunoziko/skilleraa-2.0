@@ -202,7 +202,7 @@ def register_payment_routes(api_router, *, decode_token, supabase_url_getter, se
             raise HTTPException(status_code=404, detail="Application not found")
         app = apps[0]
         job = app.get("jobs") or {}
-        if app.get("status") != "accepted":
+        if app.get("status") not in ("accepted", "completed"):
             raise HTTPException(status_code=400, detail="Application must be accepted before payment")
         if job.get("client_id") != auth["id"]:
             raise HTTPException(status_code=403, detail="You can only pay for your own jobs")

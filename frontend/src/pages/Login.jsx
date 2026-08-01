@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
+import { safePostLoginPath } from "@/components/layout/ProtectedRoute";
 import { getPendingVerifyEmail } from "@/lib/supabase";
 import { ArrowRight } from "lucide-react";
 
@@ -40,7 +41,7 @@ export default function Login() {
       return;
     }
     toast.success(`Welcome back, ${res.user.name}`);
-    const dest = location.state?.from || (res.user.role === "client" ? "/client" : "/student");
+    const dest = safePostLoginPath(location.state?.from, res.user.role);
     nav(dest);
   };
 

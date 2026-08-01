@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import DashboardShell from "@/components/layout/DashboardShell";
 import EmptyState from "@/components/EmptyState";
-import { Users } from "lucide-react";
+import ErrorState from "@/components/ErrorState";
+import { ListRowSkeleton } from "@/components/Skeleton";
+import { FileText, Users } from "lucide-react";
 import { toast } from "sonner";
 import {
   displayApplicationStatus,
@@ -19,11 +21,13 @@ import {
   payForApplication,
 } from "@/lib/paymentsService";
 import { formatApiError } from "@/lib/api";
+import { getSignedFileUrl } from "@/lib/storageService";
 
 export default function Applicants() {
   const [apps, setApps] = useState([]);
   const [payments, setPayments] = useState({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [jobs, setJobs] = useState([]);
   const [selectedJob, setSelectedJob] = useState("");
   const [busyId, setBusyId] = useState(null);
@@ -39,6 +43,7 @@ export default function Applicants() {
 
   const load = async () => {
     setLoading(true);
+    setError("");
     try {
       const [jobList, applications] = await Promise.all([
         fetchMyJobs(),
@@ -48,7 +53,7 @@ export default function Applicants() {
       setApps(applications);
       await loadPayments(applications);
     } catch (e) {
-      toast.error(e?.message || "Failed to load applicants");
+      setError(e?.message || "Failed to load applicants");
       setApps([]);
     } finally {
       setLoading(false);
@@ -56,17 +61,22 @@ export default function Applicants() {
   };
 
   useEffect(() => {
-    load();
-    return subscribeApplications((payload) => {
+    let active = true;
+    const safeLoad = () => {
+      if (active) load();
+    };
+    safeLoad();
+    const unsub = subscribeApplications((payload) => {
+      if (!active) return;
       const row = payload?.new;
       if (!row?.id) {
-        load();
+        safeLoad();
         return;
       }
       setApps((prev) => {
         const idx = prev.findIndex((a) => a.id === row.id);
         if (idx === -1) {
-          load();
+          safeLoad();
           return prev;
         }
         const next = prev.slice();
@@ -74,8 +84,23 @@ export default function Applicants() {
         return next;
       });
     });
+    return () => {
+      active = false;
+      unsub();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const openResume = async (path) => {
+    if (!path) return;
+    try {
+      const url = await getSignedFileUrl(path);
+      if (url) window.open(url, "_blank", "noopener,noreferrer");
+      else toast.error("Could not open resume");
+    } catch (e) {
+      toast.error(e?.message || "Could not open resume");
+    }
+  };
 
   const filtered = useMemo(() => {
     if (!selectedJob) return apps;
@@ -160,17 +185,15 @@ export default function Applicants() {
       )}
 
       {loading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-24 rounded-xl border skl-border bg-neutral-50 animate-pulse" />
-          ))}
-        </div>
+        <ListRowSkeleton count={4} />
+      ) : error ? (
+        <ErrorState title="Couldn’t load applicants" description={error} onRetry={load} />
       ) : filtered.length === 0 ? (
         <EmptyState
           title="No applicants yet"
           description="Once students apply to your jobs, you'll see them here."
-          ctaLabel="Browse Jobs"
-          ctaTo="/jobs"
+          ctaLabel="Post a Job"
+          ctaTo="/client/post"
           icon={Users}
         />
       ) : (
@@ -203,6 +226,16 @@ export default function Applicants() {
                         <p className="mt-3 text-sm text-neutral-700 bg-neutral-50 border skl-border rounded-xl p-3 whitespace-pre-line">
                           {a.proposal}
                         </p>
+                      )}
+                      {a.student?.resume_url && (
+                        <button
+                          type="button"
+                          onClick={() => openResume(a.student.resume_url)}
+                          className="mt-3 inline-flex items-center gap-1.5 text-xs underline underline-offset-4 text-neutral-600 hover:text-black"
+                          data-testid={`applicant-${a.id}-resume`}
+                        >
+                          <FileText size={12} /> View resume
+                        </button>
                       )}
                       <div className="mt-3 flex flex-wrap gap-2 text-xs text-neutral-600">
                         {a.expected_budget && (

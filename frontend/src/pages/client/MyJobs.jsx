@@ -8,8 +8,6 @@ import ConfirmModal from "@/components/ConfirmModal";
 import { Briefcase, Trash2, Star } from "lucide-react";
 import { toast } from "sonner";
 import { JOB_STATUSES, displayJobStatus, normalizeJobStatus } from "@/lib/jobStatus";
-import { getReviewForJobByClient } from "@/lib/mockReviews";
-import { DEMO_CLIENT_PROFILE_ID } from "@/lib/mockProfiles";
 import { deleteJob, fetchMyJobs, updateJob } from "@/lib/jobsService";
 import { useAuth } from "@/context/AuthContext";
 
@@ -127,16 +125,12 @@ export default function MyJobs() {
                 </Link>
                 {normalizeJobStatus(j.status) === "completed" && (
                   <Link
-                    to={
-                      getReviewForJobByClient(j.id, DEMO_CLIENT_PROFILE_ID)
-                        ? `/client/reviews?edit=${getReviewForJobByClient(j.id, DEMO_CLIENT_PROFILE_ID).id}`
-                        : `/client/reviews?job=${j.id}`
-                    }
+                    to="/client/reviews"
                     className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest font-semibold border skl-border px-2 py-1 rounded-full hover:bg-white"
                     data-testid={`myjob-review-${j.id}`}
                   >
                     <Star size={10} />
-                    {getReviewForJobByClient(j.id, DEMO_CLIENT_PROFILE_ID) ? "Edit review" : "Leave review"}
+                    Leave review
                   </Link>
                 )}
                 <button

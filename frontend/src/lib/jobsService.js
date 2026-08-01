@@ -95,28 +95,23 @@ export async function fetchJobs(filters = {}) {
     query = query.eq("job_type", "onsite");
   }
 
+  const rawQ = (filters.q || "").trim();
+  if (rawQ) {
+    const safe = rawQ.replace(/[%_,.()]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
+    if (safe) {
+      query = query.or(
+        `title.ilike.%${safe}%,description.ilike.%${safe}%,category.ilike.%${safe}%,location.ilike.%${safe}%`
+      );
+    }
+  }
+
+  // Cap browse results; detail/my-jobs use dedicated fetchers
+  query = query.limit(filters.limit || 100);
+
   const { data, error } = await query;
   if (error) throw error;
 
-  let jobs = (data || []).map(mapJobRow);
-
-  const q = (filters.q || "").trim().toLowerCase();
-  if (q) {
-    jobs = jobs.filter((job) => {
-      const hay = [
-        job.title,
-        job.description,
-        job.company_name,
-        job.category,
-        ...(job.skills || []),
-      ]
-        .join(" ")
-        .toLowerCase();
-      return hay.includes(q);
-    });
-  }
-
-  return jobs;
+  return (data || []).map(mapJobRow);
 }
 
 /** Fetch a single job by id. */

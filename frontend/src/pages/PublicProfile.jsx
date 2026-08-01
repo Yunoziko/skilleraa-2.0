@@ -5,7 +5,6 @@ import Footer from "@/components/layout/Footer";
 import EmptyState from "@/components/EmptyState";
 import JobStatusBadge from "@/components/JobStatusBadge";
 import StarRating from "@/components/StarRating";
-import api from "@/lib/api";
 import { Briefcase, ExternalLink, FileText } from "lucide-react";
 import {
   DEMO_CLIENT_PROFILE_ID,
@@ -13,14 +12,14 @@ import {
   displayAvailability,
   getMockProfile,
 } from "@/lib/mockProfiles";
-import {
-  computeRatingStats,
-  formatReviewDate,
-  listReviewsForStudent,
-  subscribeReviews,
-} from "@/lib/mockReviews";
 import { fetchJobs } from "@/lib/jobsService";
 import { getProfile } from "@/lib/profilesService";
+import {
+  computeRatingStats,
+  fetchProfileRating,
+  fetchReviewsForUser,
+  formatReviewDate,
+} from "@/lib/reviewsService";
 
 function ResumePlaceholder({ filename }) {
   return (
@@ -29,7 +28,7 @@ function ResumePlaceholder({ filename }) {
       data-testid="public-profile-resume"
     >
       <FileText size={14} />
-      <span className="text-sm">{filename || "Resume placeholder"}</span>
+      <span className="text-sm">{filename || "Resume on file"}</span>
     </div>
   );
 }
@@ -39,20 +38,34 @@ export default function PublicProfile() {
   const [profile, setProfile] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [reviews, setReviews] = useState([]);
+  const [ratingMeta, setRatingMeta] = useState({ average_rating: 0, review_count: 0 });
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     let active = true;
     setNotFound(false);
     setProfile(null);
+    setReviews([]);
+    setRatingMeta({ average_rating: 0, review_count: 0 });
 
-    const loadStudentReviews = (studentId) => {
-      setReviews(listReviewsForStudent(studentId || DEMO_STUDENT_PROFILE_ID).slice(0, 5));
+    const loadReviews = async (userId) => {
+      try {
+        const [list, meta] = await Promise.all([
+          fetchReviewsForUser(userId),
+          fetchProfileRating(userId),
+        ]);
+        if (!active) return;
+        setReviews(list.slice(0, 5));
+        setRatingMeta(meta);
+      } catch {
+        if (!active) return;
+        setReviews([]);
+      }
     };
 
     const loadClientJobs = async (clientId) => {
       try {
-        const list = await fetchJobs({ status: "open" });
+        const list = await fetchJobs({ status: "open", limit: 50 });
         if (!active) return;
         setJobs(list.filter((j) => String(j.client_id) === String(clientId)));
       } catch {
@@ -72,26 +85,17 @@ export default function PublicProfile() {
           company_name: row.full_name,
           avatar_letter: (row.full_name || "U").charAt(0).toUpperCase(),
           avatar_url: row.avatar_url,
+          resume_url: row.resume_url,
+          portfolio_url: row.portfolio_url,
         });
         if (row.role === "client") {
-          await loadClientJobs(row.id);
+          await Promise.all([loadClientJobs(row.id), loadReviews(row.id)]);
         } else {
-          loadStudentReviews(row.id || DEMO_STUDENT_PROFILE_ID);
+          await loadReviews(row.id);
         }
       })
       .catch(async () => {
         if (!active) return;
-        // Fallback: FastAPI profile, then mock
-        try {
-          const { data } = await api.get(`/profile/${id}`);
-          if (!active) return;
-          setProfile(data);
-          if (data.role === "client") await loadClientJobs(data.id || id);
-          else loadStudentReviews(data.id || DEMO_STUDENT_PROFILE_ID);
-          return;
-        } catch {
-          /* mock below */
-        }
         const roleHint =
           id === DEMO_CLIENT_PROFILE_ID || id?.startsWith("mock-client")
             ? "client"
@@ -103,17 +107,10 @@ export default function PublicProfile() {
         }
         setProfile(mock);
         if (mock.role === "client") await loadClientJobs(mock.id);
-        else loadStudentReviews(mock.id || DEMO_STUDENT_PROFILE_ID);
       });
-
-    const unsub = subscribeReviews(() => {
-      if (!active) return;
-      loadStudentReviews(id || DEMO_STUDENT_PROFILE_ID);
-    });
 
     return () => {
       active = false;
-      unsub();
     };
   }, [id]);
 
@@ -145,15 +142,16 @@ export default function PublicProfile() {
 
   const isClient = profile.role === "client";
   const displayName = isClient ? profile.company_name || profile.name : profile.name;
-  const links = (profile.portfolio_links?.length
-    ? profile.portfolio_links
-    : profile.portfolio_url
-      ? [profile.portfolio_url]
-      : []
+  const links = (
+    profile.portfolio_links?.length
+      ? profile.portfolio_links
+      : profile.portfolio_url && String(profile.portfolio_url).startsWith("http")
+        ? [profile.portfolio_url]
+        : []
   ).filter(Boolean);
-  const ratingStats = !isClient
-    ? computeRatingStats(listReviewsForStudent(profile.id || DEMO_STUDENT_PROFILE_ID))
-    : null;
+  const stats = computeRatingStats(reviews);
+  const average = ratingMeta.review_count ? ratingMeta.average_rating : stats.average;
+  const total = ratingMeta.review_count || stats.total;
 
   return (
     <div className="min-h-screen bg-white text-black">
@@ -187,12 +185,12 @@ export default function PublicProfile() {
             </h1>
             {profile.headline && <p className="mt-2 text-neutral-700">{profile.headline}</p>}
             {profile.location && <p className="mt-1 text-sm text-neutral-500">{profile.location}</p>}
-            {!isClient && ratingStats && ratingStats.total > 0 && (
+            {total > 0 && (
               <div className="mt-3 flex items-center gap-3" data-testid="public-rating-summary">
-                <StarRating value={ratingStats.average} size={16} readOnly />
-                <span className="text-sm font-medium">{ratingStats.average.toFixed(1)}</span>
+                <StarRating value={average} size={16} readOnly />
+                <span className="text-sm font-medium">{Number(average).toFixed(1)}</span>
                 <span className="text-sm text-neutral-500">
-                  · {ratingStats.total} review{ratingStats.total === 1 ? "" : "s"}
+                  · {total} review{total === 1 ? "" : "s"}
                 </span>
               </div>
             )}
@@ -265,43 +263,39 @@ export default function PublicProfile() {
           </div>
         )}
 
-        {!isClient && (profile.resume_filename || profile.resume_url) && (
+        {!isClient && profile.resume_url && (
           <div className="mt-10 border-t skl-border pt-8">
             <div className="text-xs uppercase tracking-[0.18em] text-neutral-500 font-semibold">Resume</div>
-            <ResumePlaceholder filename={profile.resume_filename} />
+            <ResumePlaceholder filename="Resume on file" />
           </div>
         )}
 
-        {!isClient && (
-          <div className="mt-10 border-t skl-border pt-8" data-testid="public-recent-reviews">
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-xs uppercase tracking-[0.18em] text-neutral-500 font-semibold">Recent reviews</div>
-              {ratingStats?.total > 0 && (
-                <div className="text-xs text-neutral-500">{ratingStats.total} total</div>
-              )}
-            </div>
-            <div className="mt-4 space-y-3">
-              {reviews.length === 0 ? (
-                <p className="text-sm text-neutral-500">No reviews yet.</p>
-              ) : (
-                reviews.map((r) => (
-                  <div key={r.id} className="border skl-border rounded-xl p-4">
-                    <div className="flex items-start justify-between gap-3 flex-wrap">
-                      <div>
-                        <div className="text-sm font-medium">{r.client_name}</div>
-                        <div className="text-xs text-neutral-500">
-                          {r.project_name} · {formatReviewDate(r.created_at)}
-                        </div>
-                      </div>
-                      <StarRating value={r.rating} size={14} readOnly />
-                    </div>
-                    <p className="mt-2 text-sm text-neutral-700 leading-relaxed">{r.comment}</p>
-                  </div>
-                ))
-              )}
-            </div>
+        <div className="mt-10 border-t skl-border pt-8" data-testid="public-recent-reviews">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-xs uppercase tracking-[0.18em] text-neutral-500 font-semibold">Recent reviews</div>
+            {total > 0 && <div className="text-xs text-neutral-500">{total} total</div>}
           </div>
-        )}
+          <div className="mt-4 space-y-3">
+            {reviews.length === 0 ? (
+              <p className="text-sm text-neutral-500">No reviews yet.</p>
+            ) : (
+              reviews.map((r) => (
+                <div key={r.id} className="border skl-border rounded-xl p-4">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div>
+                      <div className="text-sm font-medium">{r.reviewer_name}</div>
+                      <div className="text-xs text-neutral-500">
+                        {r.project_name} · {formatReviewDate(r.created_at)}
+                      </div>
+                    </div>
+                    <StarRating value={r.rating} size={14} readOnly />
+                  </div>
+                  <p className="mt-2 text-sm text-neutral-700 leading-relaxed">{r.review}</p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
 
         {isClient && (
           <div className="mt-10 border-t skl-border pt-8">

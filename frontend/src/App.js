@@ -106,7 +106,7 @@ function PostJobGate() {
       </div>
     );
   }
-  if (user === false) return <Navigate to="/signup" replace />;
+  if (user === false) return <Navigate to="/login" replace />;
   if (user.role === "client") return <Navigate to="/client/post" replace />;
   return <Navigate to="/student" replace />;
 }
@@ -172,7 +172,14 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            <Route path="/projects/:id" element={<ProjectDetail />} />
+            <Route
+              path="/projects/:id"
+              element={
+                <ProtectedRoute>
+                  <ProjectDetail />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/student/reviews"
               element={
@@ -312,11 +319,11 @@ function App() {
               }
             />
 
-            {/* Admin (mock / offline) */}
+            {/* Admin demo — disabled unless REACT_APP_ENABLE_ADMIN_DEMO=true */}
             <Route
               path="/admin"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute adminDemo>
                   <AdminOverview />
                 </ProtectedRoute>
               }
@@ -324,7 +331,7 @@ function App() {
             <Route
               path="/admin/users"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute adminDemo>
                   <AdminUsers />
                 </ProtectedRoute>
               }
@@ -332,7 +339,7 @@ function App() {
             <Route
               path="/admin/jobs"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute adminDemo>
                   <AdminJobs />
                 </ProtectedRoute>
               }
@@ -340,7 +347,7 @@ function App() {
             <Route
               path="/admin/reports"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute adminDemo>
                   <AdminReports />
                 </ProtectedRoute>
               }
@@ -348,7 +355,7 @@ function App() {
             <Route
               path="/admin/analytics"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute adminDemo>
                   <AdminAnalytics />
                 </ProtectedRoute>
               }
@@ -356,7 +363,7 @@ function App() {
             <Route
               path="/admin/settings"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute adminDemo>
                   <AdminSettings />
                 </ProtectedRoute>
               }

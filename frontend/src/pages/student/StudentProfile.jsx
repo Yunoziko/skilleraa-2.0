@@ -64,8 +64,19 @@ export default function StudentProfile() {
   };
 
   useEffect(() => {
-    load();
-    return subscribeProfiles(load);
+    let active = true;
+    const run = async () => {
+      await load();
+      if (!active) return;
+    };
+    run();
+    const unsub = subscribeProfiles(() => {
+      if (active) load();
+    });
+    return () => {
+      active = false;
+      unsub();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 

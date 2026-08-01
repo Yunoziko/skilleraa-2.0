@@ -71,11 +71,13 @@ export function mapApplicationRow(row) {
           avatar_letter: (name || "F").charAt(0).toUpperCase(),
           headline: profile.role === "student" ? "Student freelancer" : "",
           skills: [],
+          resume_url: profile.resume_url || "",
         }
       : null,
   };
 }
 
+/** Lean select for lists (applicants, applied, chat, reviews). */
 const APP_SELECT = `
   id,
   job_id,
@@ -89,29 +91,21 @@ const APP_SELECT = `
     id,
     client_id,
     title,
-    description,
     budget,
     category,
-    skills,
-    location,
-    job_type,
-    duration,
-    experience,
     status,
-    created_at,
-    updated_at,
     profiles!jobs_client_id_fkey (
       id,
       full_name,
-      role,
-      avatar_url
+      role
     )
   ),
   profiles!applications_freelancer_profile_fkey (
     id,
     full_name,
     role,
-    avatar_url
+    avatar_url,
+    resume_url
   )
 `;
 

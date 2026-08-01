@@ -81,8 +81,11 @@ export default function DashboardShell({ children, title, actions }) {
         });
     };
     refresh();
-    // Shared ref-counted channel — safe alongside Messages page
-    return subscribeMessages(refresh);
+    const unsub = subscribeMessages(refresh);
+    return () => {
+      active = false;
+      unsub();
+    };
   }, [user?.id]);
 
   return (

@@ -221,7 +221,8 @@ export async function fetchMessages(applicationId) {
     .from("messages")
     .select(MESSAGE_COLUMNS)
     .eq("application_id", applicationId)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: true })
+    .limit(500);
 
   if (error) throw error;
   return (data || []).map((row) => mapMessageRow(row, access.uid));

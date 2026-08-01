@@ -238,7 +238,27 @@ def register_storage_routes(
         bucket, object_path = path.split("/", 1)
         if bucket not in {"resumes", "portfolios"}:
             raise HTTPException(status_code=400, detail="Invalid bucket")
-        if not object_path.startswith(f"{uid}/"):
+        owner_id = object_path.split("/", 1)[0]
+        allowed = owner_id == uid
+        if not allowed and bucket in {"resumes", "portfolios"}:
+            # Job owners may open files for freelancers who applied to their jobs
+            check = requests.get(
+                f"{supabase_url}/rest/v1/applications",
+                params={
+                    "select": "id,jobs!inner(client_id)",
+                    "freelancer_id": f"eq.{owner_id}",
+                    "jobs.client_id": f"eq.{uid}",
+                    "limit": "1",
+                },
+                headers={
+                    "Authorization": f"Bearer {service_key}",
+                    "apikey": service_key,
+                },
+                timeout=15,
+            )
+            if check.status_code < 400 and check.json():
+                allowed = True
+        if not allowed:
             raise HTTPException(status_code=403, detail="Not allowed")
 
         resp = requests.post(

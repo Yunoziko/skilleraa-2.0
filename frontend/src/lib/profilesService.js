@@ -15,7 +15,9 @@ export async function getProfile(userId) {
   const client = assertClient();
   const { data, error } = await client
     .from("profiles")
-    .select("id, full_name, role, avatar_url, resume_url, portfolio_url, created_at")
+    .select(
+      "id, full_name, role, avatar_url, resume_url, portfolio_url, average_rating, review_count, created_at"
+    )
     .eq("id", userId)
     .maybeSingle();
   if (error) throw error;
@@ -24,7 +26,7 @@ export async function getProfile(userId) {
 
 /**
  * Ensure the signed-in user has a profiles row.
- * Creates/updates from auth metadata when missing.
+ * Creates from auth metadata when missing. Role is immutable after create.
  */
 export async function ensureProfile({ name, role } = {}) {
   const client = assertClient();
@@ -41,16 +43,10 @@ export async function ensureProfile({ name, role } = {}) {
 
   const existing = await getProfile(user.id);
   if (existing) {
-    const needsUpdate =
-      (resolvedName && existing.full_name !== resolvedName) ||
-      (role && existing.role !== resolvedRole);
-    if (needsUpdate) {
+    if (resolvedName && existing.full_name !== resolvedName) {
       const { data, error } = await client
         .from("profiles")
-        .update({
-          ...(resolvedName ? { full_name: resolvedName } : {}),
-          ...(role ? { role: resolvedRole } : {}),
-        })
+        .update({ full_name: resolvedName })
         .eq("id", user.id)
         .select("id, full_name, role, avatar_url, created_at")
         .single();

@@ -6,7 +6,7 @@ import { btnGhostMd, btnPrimarySm } from "@/lib/uiClasses";
  */
 export default function ErrorState({
   title = "Something went wrong",
-  description = "We couldn’t load this content. You can retry or continue with demo data if available.",
+  description = "We couldn’t load this content. Please try again.",
   onRetry,
   secondaryLabel,
   onSecondary,
