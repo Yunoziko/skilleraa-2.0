@@ -1,6 +1,6 @@
 import EmptyState from "@/components/EmptyState";
 import { ListRowSkeleton } from "@/components/Skeleton";
-import { MessageSquare, Search } from "lucide-react";
+import { AlertCircle, MessageSquare, Search } from "lucide-react";
 import { formatMessageTime } from "@/lib/messagesService";
 
 export default function ConversationList({
@@ -10,6 +10,7 @@ export default function ConversationList({
   onQueryChange,
   onSelect,
   loading,
+  error,
   emptyDescription,
 }) {
   return (
@@ -33,6 +34,14 @@ export default function ConversationList({
         {loading ? (
           <div className="p-3">
             <ListRowSkeleton count={4} />
+          </div>
+        ) : error ? (
+          <div className="p-6" data-testid="conversations-error">
+            <EmptyState
+              title="Couldn’t load conversations"
+              description={error}
+              icon={AlertCircle}
+            />
           </div>
         ) : conversations.length === 0 ? (
           <div className="p-6">

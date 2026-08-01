@@ -79,8 +79,9 @@ export default function DashboardShell({ children, title, actions }) {
         });
     };
     refresh();
+    // Shared ref-counted channel — safe alongside Messages page
     return subscribeMessages(refresh);
-  }, [user?.id, pathname]);
+  }, [user?.id]);
 
   return (
     <div className="min-h-screen bg-white text-black">

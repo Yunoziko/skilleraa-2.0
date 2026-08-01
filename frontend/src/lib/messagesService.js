@@ -1,5 +1,6 @@
 /**
- * Supabase real-time messaging (scoped to applications).
+ * Supabase real-time messaging scoped to applications.
+ * One shared Realtime channel for the whole app (ref-counted).
  */
 
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
@@ -7,6 +8,15 @@ import {
   fetchClientApplications,
   fetchMyApplications,
 } from "@/lib/applicationsService";
+
+const MESSAGE_COLUMNS =
+  "id, application_id, sender_id, receiver_id, message, created_at, read_at";
+
+/** @type {Set<(payload: object) => void>} */
+const realtimeListeners = new Set();
+/** @type {import('@supabase/supabase-js').RealtimeChannel | null} */
+let sharedChannel = null;
+let sharedChannelRefCount = 0;
 
 function assertClient() {
   if (!supabase || !isSupabaseConfigured) {
@@ -39,7 +49,7 @@ export function formatMessageTime(iso) {
   return d.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
-function mapMessageRow(row, uid) {
+export function mapMessageRow(row, uid) {
   if (!row) return null;
   return {
     id: row.id,
@@ -59,8 +69,7 @@ function mapMessageRow(row, uid) {
 function participantFromApplication(app, uid) {
   const clientId = app.job?.client_id;
   const freelancerId = app.freelancer_id;
-  const iAmFreelancer = freelancerId === uid;
-  if (iAmFreelancer) {
+  if (freelancerId === uid) {
     const name = app.job?.company_name || "Client";
     return {
       id: clientId,
@@ -78,15 +87,22 @@ function participantFromApplication(app, uid) {
   };
 }
 
-/** Applications the current user can chat on (must exist). */
+function isParticipant(app, uid) {
+  if (!app || !uid) return false;
+  const clientId = app.job?.client_id;
+  return app.freelancer_id === uid || clientId === uid;
+}
+
+/** Applications the current user may chat on (RLS-scoped). */
 export async function fetchChatApplications() {
   const uid = await currentUserId();
   const client = assertClient();
-  const { data: profile } = await client
+  const { data: profile, error } = await client
     .from("profiles")
     .select("role")
     .eq("id", uid)
     .maybeSingle();
+  if (error) throw error;
 
   const role = profile?.role;
   const apps =
@@ -95,8 +111,38 @@ export async function fetchChatApplications() {
 }
 
 /**
- * Conversation list: one thread per application the user participates in.
- * Includes threads with no messages yet (empty chat ready to start).
+ * Resolve a conversation the user is allowed to access.
+ * Returns null when the application does not exist or user is not a party.
+ */
+export async function resolveConversationAccess(applicationId) {
+  if (!applicationId) return null;
+  const { uid, apps } = await fetchChatApplications();
+  const app = apps.find((a) => a.id === applicationId);
+  if (!app || !isParticipant(app, uid)) return null;
+  const participant = participantFromApplication(app, uid);
+  return {
+    uid,
+    app,
+    conversation: {
+      id: app.id,
+      application_id: app.id,
+      application_status: app.status,
+      job_title: app.job?.title || "Application",
+      participant_id: participant.id,
+      participant_name: participant.name,
+      participant_letter: participant.letter,
+      participant_role: participant.role,
+      preview: "No messages yet — say hello",
+      updated_at: app.created_at,
+      unread: 0,
+      has_messages: false,
+    },
+  };
+}
+
+/**
+ * Conversation list: one thread per application.
+ * Loads only latest-message metadata + unread rows (not full history).
  */
 export async function fetchConversations(searchQuery = "") {
   const { uid, apps } = await fetchChatApplications();
@@ -104,28 +150,35 @@ export async function fetchConversations(searchQuery = "") {
 
   const client = assertClient();
   const ids = apps.map((a) => a.id);
-  const { data: rows, error } = await client
-    .from("messages")
-    .select("id, application_id, sender_id, receiver_id, message, created_at, read_at")
-    .in("application_id", ids)
-    .order("created_at", { ascending: true });
 
-  if (error) throw error;
+  const [latestRes, unreadRes] = await Promise.all([
+    client.rpc("latest_messages_for_applications", { app_ids: ids }),
+    client
+      .from("messages")
+      .select("application_id")
+      .in("application_id", ids)
+      .eq("receiver_id", uid)
+      .is("read_at", null),
+  ]);
 
-  const byApp = new Map();
-  for (const row of rows || []) {
-    const list = byApp.get(row.application_id) || [];
-    list.push(row);
-    byApp.set(row.application_id, list);
+  if (latestRes.error) throw latestRes.error;
+  if (unreadRes.error) throw unreadRes.error;
+
+  const latestByApp = new Map();
+  for (const row of latestRes.data || []) {
+    latestByApp.set(row.application_id, row);
+  }
+
+  const unreadByApp = new Map();
+  for (const row of unreadRes.data || []) {
+    unreadByApp.set(row.application_id, (unreadByApp.get(row.application_id) || 0) + 1);
   }
 
   const q = String(searchQuery || "").trim().toLowerCase();
 
-  const conversations = apps
+  return apps
     .map((app) => {
-      const msgs = byApp.get(app.id) || [];
-      const last = msgs[msgs.length - 1] || null;
-      const unread = msgs.filter((m) => m.receiver_id === uid && !m.read_at).length;
+      const last = latestByApp.get(app.id) || null;
       const participant = participantFromApplication(app, uid);
       const jobTitle = app.job?.title || "Application";
       return {
@@ -139,8 +192,8 @@ export async function fetchConversations(searchQuery = "") {
         participant_role: participant.role,
         preview: last?.message || "No messages yet — say hello",
         updated_at: last?.created_at || app.created_at,
-        unread,
-        has_messages: msgs.length > 0,
+        unread: unreadByApp.get(app.id) || 0,
+        has_messages: Boolean(last),
       };
     })
     .filter((c) => {
@@ -152,21 +205,24 @@ export async function fetchConversations(searchQuery = "") {
       );
     })
     .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
-
-  return conversations;
 }
 
+/** Thread messages — only if caller is a participant (RLS + explicit guard). */
 export async function fetchMessages(applicationId) {
-  const uid = await currentUserId();
+  const access = await resolveConversationAccess(applicationId);
+  if (!access) {
+    throw new Error("You do not have access to this conversation.");
+  }
+
   const client = assertClient();
   const { data, error } = await client
     .from("messages")
-    .select("id, application_id, sender_id, receiver_id, message, created_at, read_at")
+    .select(MESSAGE_COLUMNS)
     .eq("application_id", applicationId)
     .order("created_at", { ascending: true });
 
   if (error) throw error;
-  return (data || []).map((row) => mapMessageRow(row, uid));
+  return (data || []).map((row) => mapMessageRow(row, access.uid));
 }
 
 export async function sendChatMessage(applicationId, text) {
@@ -199,7 +255,9 @@ export async function sendChatMessage(applicationId, text) {
   let receiverId = null;
   if (uid === freelancerId) receiverId = clientId;
   else if (uid === clientId) receiverId = freelancerId;
-  if (!receiverId) throw new Error("Could not resolve chat recipient.");
+  if (!receiverId) {
+    throw new Error("You do not have access to this conversation.");
+  }
 
   const { data, error } = await client
     .from("messages")
@@ -209,7 +267,7 @@ export async function sendChatMessage(applicationId, text) {
       receiver_id: receiverId,
       message: body,
     })
-    .select("id, application_id, sender_id, receiver_id, message, created_at, read_at")
+    .select(MESSAGE_COLUMNS)
     .single();
 
   if (error) throw error;
@@ -243,28 +301,69 @@ export async function totalUnreadMessages() {
 }
 
 /**
- * Subscribe to message changes for the signed-in user (RLS-filtered).
- * Returns an unsubscribe function.
+ * Shared Realtime subscription (single channel, many listeners).
+ * RLS filters events to sender/receiver only.
  */
 export function subscribeMessages(onChange) {
   if (!supabase || !isSupabaseConfigured) return () => {};
+  if (typeof onChange !== "function") return () => {};
 
-  const channel = supabase
-    .channel(`skl-messages-${Date.now()}`)
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "messages" },
-      (payload) => {
-        try {
-          onChange?.(payload);
-        } catch {
-          // ignore subscriber errors
+  realtimeListeners.add(onChange);
+  sharedChannelRefCount += 1;
+
+  if (!sharedChannel) {
+    sharedChannel = supabase
+      .channel("skl-messages-shared")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "messages" },
+        (payload) => {
+          realtimeListeners.forEach((fn) => {
+            try {
+              fn(payload);
+            } catch {
+              // ignore listener errors
+            }
+          });
         }
-      }
-    )
-    .subscribe();
+      )
+      .subscribe();
+  }
 
   return () => {
-    supabase.removeChannel(channel);
+    realtimeListeners.delete(onChange);
+    sharedChannelRefCount = Math.max(0, sharedChannelRefCount - 1);
+    if (sharedChannelRefCount === 0 && sharedChannel) {
+      supabase.removeChannel(sharedChannel);
+      sharedChannel = null;
+    }
   };
+}
+
+/** Apply a realtime payload onto a conversation list (immutable). */
+export function applyRealtimeToConversations(conversations, payload, uid) {
+  const event = payload?.eventType || payload?.event;
+  const row = payload?.new;
+  if (!row?.application_id || !Array.isArray(conversations)) return conversations;
+
+  const idx = conversations.findIndex((c) => c.id === row.application_id);
+  if (idx === -1) return conversations;
+
+  const next = conversations.slice();
+  const current = { ...next[idx] };
+
+  if (event === "INSERT") {
+    current.preview = row.message || current.preview;
+    current.updated_at = row.created_at || current.updated_at;
+    current.has_messages = true;
+    if (row.receiver_id === uid && !row.read_at) {
+      current.unread = (current.unread || 0) + 1;
+    }
+  } else if (event === "UPDATE" && row.read_at && row.receiver_id === uid) {
+    current.unread = Math.max(0, (current.unread || 1) - 1);
+  }
+
+  next.splice(idx, 1);
+  next.unshift(current);
+  return next;
 }

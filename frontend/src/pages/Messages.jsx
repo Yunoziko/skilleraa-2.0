@@ -6,9 +6,12 @@ import ChatWindow from "@/components/chat/ChatWindow";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import {
+  applyRealtimeToConversations,
   fetchConversations,
   fetchMessages,
+  mapMessageRow,
   markConversationRead,
+  resolveConversationAccess,
   sendChatMessage,
   subscribeMessages,
 } from "@/lib/messagesService";
@@ -22,10 +25,16 @@ export default function Messages() {
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(true);
+  const [listError, setListError] = useState("");
+  const [threadError, setThreadError] = useState("");
   const [sending, setSending] = useState(false);
   const [threadLoading, setThreadLoading] = useState(false);
+
   const activeIdRef = useRef(activeId);
   const queryRef = useRef(query);
+  const uidRef = useRef(user?.id || "");
+  const loadSeqRef = useRef(0);
+  const threadSeqRef = useRef(0);
 
   useEffect(() => {
     activeIdRef.current = activeId;
@@ -35,84 +44,176 @@ export default function Messages() {
     queryRef.current = query;
   }, [query]);
 
+  useEffect(() => {
+    uidRef.current = user?.id || "";
+  }, [user?.id]);
+
   const active = useMemo(
     () => conversations.find((c) => c.id === activeId) || null,
     [conversations, activeId]
   );
 
   const refreshList = useCallback(async () => {
+    const seq = ++loadSeqRef.current;
     try {
       const list = await fetchConversations(queryRef.current);
+      if (seq !== loadSeqRef.current) return;
       setConversations(list);
+      setListError("");
+      return list;
     } catch (e) {
-      toast.error(e?.message || "Failed to load conversations");
+      if (seq !== loadSeqRef.current) return;
+      const msg = e?.message || "Failed to load conversations";
+      setListError(msg);
       setConversations([]);
+      toast.error(msg);
+      return [];
     } finally {
-      setLoading(false);
+      if (seq === loadSeqRef.current) setLoading(false);
     }
   }, []);
 
-  const refreshThread = useCallback(async (id, { markRead = true } = {}) => {
+  const openThread = useCallback(async (id) => {
     if (!id) {
       setMessages([]);
+      setThreadError("");
       return;
     }
-    setThreadLoading(true);
-    try {
-      const list = await fetchMessages(id);
-      setMessages(list);
-      if (markRead) {
-        await markConversationRead(id);
-        setConversations((prev) =>
-          prev.map((c) => (c.id === id ? { ...c, unread: 0 } : c))
-        );
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.mine || m.read_at
-              ? m
-              : { ...m, read_at: m.read_at || new Date().toISOString(), read: true }
-          )
-        );
-      }
-    } catch (e) {
-      toast.error(e?.message || "Failed to load messages");
-      setMessages([]);
-    } finally {
-      setThreadLoading(false);
-    }
-  }, []);
 
+    const seq = ++threadSeqRef.current;
+    setThreadLoading(true);
+    setThreadError("");
+
+    try {
+      const access = await resolveConversationAccess(id);
+      if (seq !== threadSeqRef.current) return;
+
+      if (!access) {
+        setMessages([]);
+        setThreadError("You do not have access to this conversation.");
+        setActiveId("");
+        setParams({}, { replace: true });
+        toast.error("Unauthorized conversation");
+        return;
+      }
+
+      const list = await fetchMessages(id);
+      if (seq !== threadSeqRef.current) return;
+      setMessages(list);
+
+      await markConversationRead(id);
+      if (seq !== threadSeqRef.current) return;
+
+      setConversations((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, unread: 0 } : c))
+      );
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.mine || m.read_at
+            ? m
+            : { ...m, read_at: m.read_at || new Date().toISOString(), read: true }
+        )
+      );
+    } catch (e) {
+      if (seq !== threadSeqRef.current) return;
+      const msg = e?.message || "Failed to load messages";
+      setThreadError(msg);
+      setMessages([]);
+      toast.error(msg);
+    } finally {
+      if (seq === threadSeqRef.current) setThreadLoading(false);
+    }
+  }, [setParams]);
+
+  // Initial + search refresh
   useEffect(() => {
     if (!user?.id) return;
     setLoading(true);
     refreshList();
   }, [user?.id, query, refreshList]);
 
+  // Single shared realtime subscription for this page
   useEffect(() => {
     if (!user?.id) return undefined;
-    return subscribeMessages(() => {
-      refreshList();
-      if (activeIdRef.current) {
-        refreshThread(activeIdRef.current, { markRead: true });
+
+    return subscribeMessages((payload) => {
+      const event = payload?.eventType || payload?.event;
+      const row = payload?.new;
+      const uid = uidRef.current;
+      if (!row || !uid) return;
+
+      setConversations((prev) => applyRealtimeToConversations(prev, payload, uid));
+
+      const openId = activeIdRef.current;
+      if (!openId || row.application_id !== openId) return;
+
+      if (event === "INSERT") {
+        const mapped = mapMessageRow(row, uid);
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === mapped.id)) return prev;
+          return [...prev, mapped];
+        });
+        if (row.receiver_id === uid && !row.read_at) {
+          markConversationRead(openId)
+            .then(() => {
+              setConversations((prev) =>
+                prev.map((c) => (c.id === openId ? { ...c, unread: 0 } : c))
+              );
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === mapped.id
+                    ? { ...m, read_at: m.read_at || new Date().toISOString(), read: true }
+                    : m
+                )
+              );
+            })
+            .catch(() => {});
+        }
+      } else if (event === "UPDATE") {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === row.id ? mapMessageRow(row, uid) : m))
+        );
       }
     });
-  }, [user?.id, refreshList, refreshThread]);
+  }, [user?.id]);
 
+  // Sync active id from URL
   useEffect(() => {
     const fromUrl = params.get("c");
-    if (fromUrl) setActiveId(fromUrl);
+    if (fromUrl && fromUrl !== activeId) setActiveId(fromUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params]);
 
+  // After list loads: validate / select conversation
   useEffect(() => {
-    if (!activeId && conversations[0]) {
-      setActiveId(conversations[0].id);
-    }
-  }, [conversations, activeId]);
+    if (loading) return;
 
+    if (activeId) {
+      const allowed = conversations.some((c) => c.id === activeId);
+      if (!allowed && conversations.length > 0) {
+        // Deep-link may still be valid but filtered by search — verify access separately
+        if (query.trim()) return;
+        resolveConversationAccess(activeId).then((access) => {
+          if (!access) {
+            setActiveId(conversations[0]?.id || "");
+            toast.error("Unauthorized conversation");
+          }
+        });
+      }
+      return;
+    }
+
+    if (conversations[0]) setActiveId(conversations[0].id);
+  }, [loading, conversations, activeId, query]);
+
+  // Open thread when active conversation changes
   useEffect(() => {
-    if (!activeId || !user?.id) return;
-    refreshThread(activeId);
+    if (!user?.id || !activeId) {
+      setMessages([]);
+      return;
+    }
     setParams({ c: activeId }, { replace: true });
+    openThread(activeId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId, user?.id]);
 
@@ -122,16 +223,52 @@ export default function Messages() {
     const text = draft.trim();
     setSending(true);
     setDraft("");
+
+    const tempId = `temp-${Date.now()}`;
+    const optimistic = {
+      id: tempId,
+      application_id: activeId,
+      conversation_id: activeId,
+      sender_id: user.id,
+      receiver_id: active?.participant_id,
+      text,
+      message: text,
+      created_at: new Date().toISOString(),
+      read_at: null,
+      mine: true,
+      read: false,
+      pending: true,
+    };
+    setMessages((prev) => [...prev, optimistic]);
+    setConversations((prev) => {
+      const idx = prev.findIndex((c) => c.id === activeId);
+      if (idx === -1) return prev;
+      const next = prev.slice();
+      const current = {
+        ...next[idx],
+        preview: text,
+        updated_at: optimistic.created_at,
+        has_messages: true,
+      };
+      next.splice(idx, 1);
+      next.unshift(current);
+      return next;
+    });
+
     try {
       const msg = await sendChatMessage(activeId, text);
       setMessages((prev) => {
-        if (prev.some((m) => m.id === msg.id)) return prev;
-        return [...prev, msg];
+        const withoutTemp = prev.filter((m) => m.id !== tempId);
+        if (withoutTemp.some((m) => m.id === msg.id)) return withoutTemp;
+        return [...withoutTemp, msg];
       });
-      await refreshList();
+      setThreadError("");
     } catch (err) {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
       setDraft(text);
-      toast.error(err?.message || "Failed to send");
+      const msg = err?.message || "Failed to send";
+      setThreadError(msg);
+      toast.error(msg);
     } finally {
       setSending(false);
     }
@@ -155,6 +292,7 @@ export default function Messages() {
           onQueryChange={setQuery}
           onSelect={setActiveId}
           loading={loading}
+          error={listError}
           emptyDescription={emptyDescription}
         />
         <ChatWindow
@@ -165,6 +303,7 @@ export default function Messages() {
           onSend={onSend}
           sending={sending}
           threadLoading={threadLoading}
+          error={threadError}
         />
       </div>
     </DashboardShell>
