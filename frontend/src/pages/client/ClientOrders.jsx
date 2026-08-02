@@ -15,7 +15,7 @@ import {
   requestRevision,
   subscribeProjects,
 } from "@/lib/mockProjects";
-import { DEMO_CLIENT_PROFILE_ID } from "@/lib/mockProfiles";
+import { useAuth } from "@/context/AuthContext";
 
 const TABS = [
   { key: "active", label: "Active Orders" },
@@ -24,19 +24,21 @@ const TABS = [
 ];
 
 export default function ClientOrders() {
+  const { user } = useAuth();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("active");
 
   const load = () => {
-    setOrders(listClientOrders(DEMO_CLIENT_PROFILE_ID));
+    setOrders(listClientOrders(user?.id || ""));
     setLoading(false);
   };
 
   useEffect(() => {
     load();
     return subscribeProjects(load);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const groups = useMemo(() => groupClientOrders(orders), [orders]);
   const visible = groups[tab] || [];

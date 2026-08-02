@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import DashboardShell from "@/components/layout/DashboardShell";
 import EmptyState from "@/components/EmptyState";
+import ErrorState from "@/components/ErrorState";
 import ReviewModal from "@/components/ReviewModal";
 import StarRating from "@/components/StarRating";
 import { ListRowSkeleton } from "@/components/Skeleton";
@@ -22,12 +23,14 @@ export default function StudentReviews() {
   const [ratingMeta, setRatingMeta] = useState({ average_rating: 0, review_count: 0 });
   const [reviewable, setReviewable] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [modalTarget, setModalTarget] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
     if (!user?.id) return;
     setLoading(true);
+    setError("");
     try {
       const [list, meta, pending] = await Promise.all([
         fetchReviewsForUser(user.id),
@@ -38,7 +41,7 @@ export default function StudentReviews() {
       setRatingMeta(meta);
       setReviewable(pending);
     } catch (e) {
-      toast.error(e?.message || "Failed to load reviews");
+      setError(e?.message || "Failed to load reviews");
       setReviews([]);
     } finally {
       setLoading(false);
@@ -46,8 +49,32 @@ export default function StudentReviews() {
   };
 
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let active = true;
+    (async () => {
+      if (!user?.id) return;
+      setLoading(true);
+      setError("");
+      try {
+        const [list, meta, pending] = await Promise.all([
+          fetchReviewsForUser(user.id),
+          fetchProfileRating(user.id),
+          fetchReviewableApplications(),
+        ]);
+        if (!active) return;
+        setReviews(list);
+        setRatingMeta(meta);
+        setReviewable(pending);
+      } catch (e) {
+        if (!active) return;
+        setError(e?.message || "Failed to load reviews");
+        setReviews([]);
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
   }, [user?.id]);
 
   const stats = computeRatingStats(reviews);
@@ -84,6 +111,8 @@ export default function StudentReviews() {
     >
       {loading ? (
         <ListRowSkeleton count={4} />
+      ) : error ? (
+        <ErrorState title="Couldn’t load reviews" description={error} onRetry={load} />
       ) : (
         <>
           {reviewable.length > 1 && (

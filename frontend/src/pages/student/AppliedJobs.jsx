@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import DashboardShell from "@/components/layout/DashboardShell";
 import EmptyState from "@/components/EmptyState";
+import ErrorState from "@/components/ErrorState";
 import { ListRowSkeleton } from "@/components/Skeleton";
 import { FileText } from "lucide-react";
 import { toast } from "sonner";
@@ -15,26 +16,31 @@ import {
 export default function AppliedJobs() {
   const [apps, setApps] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const load = () =>
-    fetchMyApplications()
+  const load = () => {
+    setLoading(true);
+    setError("");
+    return fetchMyApplications()
       .then((list) => setApps(list))
       .catch((e) => {
-        toast.error(e?.message || "Failed to load applications");
+        setError(e?.message || "Failed to load applications");
         setApps([]);
       })
       .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
     let active = true;
     setLoading(true);
+    setError("");
     fetchMyApplications()
       .then((list) => {
         if (active) setApps(list);
       })
       .catch((e) => {
         if (!active) return;
-        toast.error(e?.message || "Failed to load applications");
+        setError(e?.message || "Failed to load applications");
         setApps([]);
       })
       .finally(() => {
@@ -42,6 +48,7 @@ export default function AppliedJobs() {
       });
 
     const unsub = subscribeApplications((payload) => {
+      if (!active) return;
       const row = payload?.new;
       if (!row?.id) {
         load();
@@ -73,6 +80,8 @@ export default function AppliedJobs() {
     <DashboardShell title="My Applications">
       {loading ? (
         <ListRowSkeleton count={3} />
+      ) : error ? (
+        <ErrorState title="Couldn’t load applications" description={error} onRetry={load} />
       ) : apps.length === 0 ? (
         <EmptyState
           title="No applications yet"

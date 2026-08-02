@@ -252,8 +252,9 @@ export function subscribeApplications(onChange) {
   if (!supabase || !isSupabaseConfigured) return () => {};
   if (typeof onChange !== "function") return () => {};
 
+  const isNew = !applicationListeners.has(onChange);
   applicationListeners.add(onChange);
-  applicationsChannelRefCount += 1;
+  if (isNew) applicationsChannelRefCount += 1;
 
   if (!applicationsChannel) {
     applicationsChannel = supabase
@@ -275,6 +276,7 @@ export function subscribeApplications(onChange) {
   }
 
   return () => {
+    if (!applicationListeners.has(onChange)) return;
     applicationListeners.delete(onChange);
     applicationsChannelRefCount = Math.max(0, applicationsChannelRefCount - 1);
     if (applicationsChannelRefCount === 0 && applicationsChannel) {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import DashboardShell from "@/components/layout/DashboardShell";
 import EmptyState from "@/components/EmptyState";
+import ErrorState from "@/components/ErrorState";
 import ReviewModal from "@/components/ReviewModal";
 import StarRating from "@/components/StarRating";
 import { ListRowSkeleton } from "@/components/Skeleton";
@@ -24,12 +25,14 @@ export default function ClientReviews() {
   const [ratingMeta, setRatingMeta] = useState({ average_rating: 0, review_count: 0 });
   const [reviewable, setReviewable] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [modalTarget, setModalTarget] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
     if (!user?.id) return;
     setLoading(true);
+    setError("");
     try {
       const [recv, mine, meta, pending] = await Promise.all([
         fetchReviewsForUser(user.id),
@@ -42,15 +45,40 @@ export default function ClientReviews() {
       setRatingMeta(meta);
       setReviewable(pending);
     } catch (e) {
-      toast.error(e?.message || "Failed to load reviews");
+      setError(e?.message || "Failed to load reviews");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let active = true;
+    (async () => {
+      if (!user?.id) return;
+      setLoading(true);
+      setError("");
+      try {
+        const [recv, mine, meta, pending] = await Promise.all([
+          fetchReviewsForUser(user.id),
+          fetchMyWrittenReviews(),
+          fetchProfileRating(user.id),
+          fetchReviewableApplications(),
+        ]);
+        if (!active) return;
+        setReceived(recv);
+        setWritten(mine);
+        setRatingMeta(meta);
+        setReviewable(pending);
+      } catch (e) {
+        if (!active) return;
+        setError(e?.message || "Failed to load reviews");
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
   }, [user?.id]);
 
   const stats = computeRatingStats(received);
@@ -87,6 +115,8 @@ export default function ClientReviews() {
     >
       {loading ? (
         <ListRowSkeleton count={4} />
+      ) : error ? (
+        <ErrorState title="Couldn’t load reviews" description={error} onRetry={load} />
       ) : (
         <div className="space-y-8">
           <div className="grid md:grid-cols-3 gap-4">

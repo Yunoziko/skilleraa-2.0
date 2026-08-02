@@ -106,7 +106,9 @@ function PostJobGate() {
       </div>
     );
   }
-  if (user === false) return <Navigate to="/login" replace />;
+  if (user === false) {
+    return <Navigate to="/login" state={{ from: "/post-job" }} replace />;
+  }
   if (user.role === "client") return <Navigate to="/client/post" replace />;
   return <Navigate to="/student" replace />;
 }

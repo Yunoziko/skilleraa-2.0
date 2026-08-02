@@ -152,14 +152,16 @@ export async function fetchProfileRating(userId) {
 export async function fetchReviewableApplications() {
   const uid = await currentUserId();
   const client = assertClient();
-  const { data: profile } = await client
+  const { data: profile, error: profileError } = await client
     .from("profiles")
     .select("role")
     .eq("id", uid)
     .maybeSingle();
+  if (profileError) throw profileError;
+  if (!profile?.role) throw new Error("Profile not found.");
 
   const apps =
-    profile?.role === "client"
+    profile.role === "client"
       ? await fetchClientApplications()
       : await fetchMyApplications();
 

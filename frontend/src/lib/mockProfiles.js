@@ -139,6 +139,6 @@ export function displayAvailability(status) {
 }
 
 /** Active (open) jobs for a client public/profile view from mock job store. */
-export function getMockActiveJobsForClient(clientId) {
+export function getMockActiveJobsForClient(_clientId) {
   return listMockClientJobs().filter((j) => isPubliclyListed(j.status));
 }

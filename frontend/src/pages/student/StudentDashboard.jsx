@@ -126,7 +126,6 @@ export default function StudentDashboard() {
       cancelled = true;
       unsubS();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   return (

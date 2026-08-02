@@ -14,7 +14,7 @@ import {
   startProject,
   subscribeProjects,
 } from "@/lib/mockProjects";
-import { DEMO_STUDENT_PROFILE_ID } from "@/lib/mockProfiles";
+import { useAuth } from "@/context/AuthContext";
 
 const TABS = [
   { key: "active", label: "Active Projects" },
@@ -23,19 +23,21 @@ const TABS = [
 ];
 
 export default function StudentProjects() {
+  const { user } = useAuth();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("active");
 
   const load = () => {
-    setProjects(listStudentProjects(DEMO_STUDENT_PROFILE_ID));
+    setProjects(listStudentProjects(user?.id || ""));
     setLoading(false);
   };
 
   useEffect(() => {
     load();
     return subscribeProjects(load);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const groups = useMemo(() => groupStudentProjects(projects), [projects]);
   const visible = groups[tab] || [];

@@ -322,6 +322,10 @@ export default function Messages() {
           onSelect={setActiveId}
           loading={loading}
           error={listError}
+          onRetry={() => {
+            setLoading(true);
+            refreshList();
+          }}
           emptyDescription={emptyDescription}
         />
         <ChatWindow

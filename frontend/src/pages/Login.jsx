@@ -24,9 +24,9 @@ export default function Login() {
 
   useEffect(() => {
     if (!authLoading && user && user !== false) {
-      nav(user.role === "client" ? "/client" : "/student", { replace: true });
+      nav(safePostLoginPath(location.state?.from, user.role), { replace: true });
     }
-  }, [authLoading, user, nav]);
+  }, [authLoading, user, nav, location.state?.from]);
 
   const submit = async (e) => {
     e.preventDefault();

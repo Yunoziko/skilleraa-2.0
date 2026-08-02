@@ -56,20 +56,23 @@ export async function ensureProfile({ name, role } = {}) {
     return existing;
   }
 
+  // Insert-only: trigger may race; never overwrite role/avatar on conflict
   const { data, error } = await client
     .from("profiles")
-    .upsert(
-      {
-        id: user.id,
-        full_name: resolvedName,
-        role: resolvedRole,
-        avatar_url: null,
-      },
-      { onConflict: "id" }
-    )
+    .insert({
+      id: user.id,
+      full_name: resolvedName,
+      role: resolvedRole,
+    })
     .select("id, full_name, role, avatar_url, created_at")
-    .single();
+    .maybeSingle();
 
-  if (error) throw error;
-  return data;
+  if (error) {
+    if (error.code === "23505") {
+      const again = await getProfile(user.id);
+      if (again) return again;
+    }
+    throw error;
+  }
+  return data || getProfile(user.id);
 }

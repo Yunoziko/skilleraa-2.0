@@ -214,10 +214,8 @@ export function listStudentProjects(studentId = DEMO_STUDENT_PROFILE_ID) {
 }
 
 export function listClientOrders(clientId = DEMO_CLIENT_PROFILE_ID) {
-  // Offline demo: show full order set so Active / Pending Approval / Completed tabs are usable.
-  // When auth returns, filter strictly by clientId.
   const all = listProjects();
-  if (!clientId || clientId === DEMO_CLIENT_PROFILE_ID) return all;
+  if (!clientId) return [];
   return all.filter((p) => p.client_id === clientId);
 }
 

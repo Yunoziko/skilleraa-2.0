@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import DashboardShell from "@/components/layout/DashboardShell";
 import EmptyState from "@/components/EmptyState";
+import ErrorState from "@/components/ErrorState";
 import JobStatusBadge from "@/components/JobStatusBadge";
 import { ListRowSkeleton } from "@/components/Skeleton";
 import ConfirmModal from "@/components/ConfirmModal";
@@ -15,23 +16,41 @@ export default function MyJobs() {
   const { user } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
   const load = () => {
     setLoading(true);
+    setError("");
     fetchMyJobs(user?.id)
       .then((list) => setJobs(list))
       .catch((err) => {
         setJobs([]);
-        toast.error(err?.message || "Could not load your jobs");
+        setError(err?.message || "Could not load your jobs");
       })
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let active = true;
+    setLoading(true);
+    setError("");
+    fetchMyJobs(user?.id)
+      .then((list) => {
+        if (active) setJobs(list);
+      })
+      .catch((err) => {
+        if (!active) return;
+        setJobs([]);
+        setError(err?.message || "Could not load your jobs");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [user?.id]);
 
   const changeStatus = async (id, status) => {
@@ -74,6 +93,8 @@ export default function MyJobs() {
     >
       {loading ? (
         <ListRowSkeleton count={4} />
+      ) : error ? (
+        <ErrorState title="Couldn’t load jobs" description={error} onRetry={load} />
       ) : jobs.length === 0 ? (
         <EmptyState
           title="No jobs posted yet"

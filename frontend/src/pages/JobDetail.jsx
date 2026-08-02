@@ -134,9 +134,10 @@ export default function JobDetail() {
   const onFormSubmit = (e) => {
     e.preventDefault();
     setFormError("");
-    if (!user) {
+    if (user === null) return;
+    if (user === false) {
       toast.error("Please sign in to apply");
-      nav("/login");
+      nav("/login", { state: { from: `/jobs/${id}` } });
       return;
     }
     if (user.role === "client") {
@@ -277,9 +278,10 @@ export default function JobDetail() {
               ) : (
                 <button type="button"
                   onClick={() => {
-                    if (!user) {
+                    if (user === null) return;
+                    if (user === false) {
                       toast.error("Please sign in to apply");
-                      nav("/login");
+                      nav("/login", { state: { from: `/jobs/${id}` } });
                       return;
                     }
                     setShowApply(!showApply);

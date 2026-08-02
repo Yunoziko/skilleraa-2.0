@@ -160,7 +160,8 @@ export async function fetchConversations(searchQuery = "") {
       .select("application_id")
       .in("application_id", ids)
       .eq("receiver_id", uid)
-      .is("read_at", null),
+      .is("read_at", null)
+      .limit(2000),
   ]);
 
   if (latestRes.error) throw latestRes.error;
@@ -315,8 +316,9 @@ export function subscribeMessages(onChange) {
   if (!supabase || !isSupabaseConfigured) return () => {};
   if (typeof onChange !== "function") return () => {};
 
+  const isNew = !realtimeListeners.has(onChange);
   realtimeListeners.add(onChange);
-  sharedChannelRefCount += 1;
+  if (isNew) sharedChannelRefCount += 1;
 
   if (!sharedChannel) {
     sharedChannel = supabase
@@ -338,6 +340,7 @@ export function subscribeMessages(onChange) {
   }
 
   return () => {
+    if (!realtimeListeners.has(onChange)) return;
     realtimeListeners.delete(onChange);
     sharedChannelRefCount = Math.max(0, sharedChannelRefCount - 1);
     if (sharedChannelRefCount === 0 && sharedChannel) {
@@ -367,7 +370,8 @@ export function applyRealtimeToConversations(conversations, payload, uid) {
       current.unread = (current.unread || 0) + 1;
     }
   } else if (event === "UPDATE" && row.read_at && row.receiver_id === uid) {
-    current.unread = Math.max(0, (current.unread || 1) - 1);
+    // Batch read receipts: zero the thread rather than decrementing per event
+    current.unread = 0;
   }
 
   next.splice(idx, 1);

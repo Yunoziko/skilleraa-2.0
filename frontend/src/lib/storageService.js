@@ -102,6 +102,11 @@ export async function fetchProfileFileFields(userId) {
 
 export async function getSignedFileUrl(path) {
   if (!path) return null;
-  const { data } = await api.get("/storage/signed-url", { params: { path } });
-  return data?.url || null;
+  try {
+    const { data } = await api.get("/storage/signed-url", { params: { path } });
+    return data?.url || null;
+  } catch (e) {
+    const detail = e?.response?.data?.detail;
+    throw new Error(formatApiError(detail || e?.message || "Could not open file"));
+  }
 }
