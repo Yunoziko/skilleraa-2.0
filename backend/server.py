@@ -6,6 +6,7 @@ load_dotenv(ROOT_DIR / '.env')
 
 import os
 import logging
+import re
 import uuid
 import json
 from datetime import datetime, timezone, timedelta
@@ -89,6 +90,26 @@ def serialize_user(user: dict) -> dict:
         "portfolio_url": user.get("portfolio_url", ""),
         "resume_url": user.get("resume_url", ""),
         "resume_filename": user.get("resume_filename", ""),
+        "company_name": user.get("company_name", ""),
+        "company_website": user.get("company_website", ""),
+        "company_description": user.get("company_description", ""),
+        "avatar_letter": (user.get("name") or user.get("email") or "?")[0].upper(),
+        "created_at": user.get("created_at").isoformat() if isinstance(user.get("created_at"), datetime) else user.get("created_at"),
+    }
+
+
+def serialize_public_user(user: dict) -> dict:
+    """Public profile: omit email and private file pointers."""
+    return {
+        "id": str(user["_id"]),
+        "name": user.get("name", ""),
+        "role": user.get("role", "student"),
+        "headline": user.get("headline", ""),
+        "bio": user.get("bio", ""),
+        "location": user.get("location", ""),
+        "skills": user.get("skills", []),
+        "education": user.get("education", ""),
+        "portfolio_url": user.get("portfolio_url", "") if str(user.get("portfolio_url") or "").startswith("http") else "",
         "company_name": user.get("company_name", ""),
         "company_website": user.get("company_website", ""),
         "company_description": user.get("company_description", ""),
@@ -331,7 +352,7 @@ async def get_public_profile(user_id: str):
         raise HTTPException(status_code=404, detail="User not found")
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return serialize_user(user)
+    return serialize_public_user(user)
 
 
 # --- Jobs ---
@@ -346,10 +367,11 @@ async def list_jobs(
 ):
     query: dict = {"status": "open"}
     if q:
+        safe_q = re.escape(q[:120])
         query["$or"] = [
-            {"title": {"$regex": q, "$options": "i"}},
-            {"description": {"$regex": q, "$options": "i"}},
-            {"category": {"$regex": q, "$options": "i"}},
+            {"title": {"$regex": safe_q, "$options": "i"}},
+            {"description": {"$regex": safe_q, "$options": "i"}},
+            {"category": {"$regex": safe_q, "$options": "i"}},
         ]
     if category and category != "All":
         query["category"] = category
@@ -748,20 +770,21 @@ async def upload_file(
 
 
 @api.get("/files/{file_id}")
-async def download_file(file_id: str, auth: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
-    # Require a valid Supabase access token (Bearer header or ?auth= for <a href> downloads)
-    token = None
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization[7:]
-    elif auth:
-        token = auth
-    if not token:
+async def download_file(file_id: str, authorization: Optional[str] = Header(None)):
+    # Bearer only — never accept JWT via query string (leaks via logs/Referer)
+    if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Not authenticated")
-    decode_supabase_access_token(token)
+    token = authorization[7:]
+    payload = decode_supabase_access_token(token)
+    user = await find_user_for_supabase(payload)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
 
     rec = await db.files.find_one({"id": file_id, "is_deleted": False})
     if not rec:
         raise HTTPException(status_code=404, detail="File not found")
+    if rec.get("user_id") != user["_id"]:
+        raise HTTPException(status_code=403, detail="Forbidden")
 
     try:
         data, content_type = get_object(rec["storage_path"])
@@ -769,10 +792,11 @@ async def download_file(file_id: str, auth: Optional[str] = Query(None), authori
         logger.error(f"Download failed: {e}")
         raise HTTPException(status_code=500, detail="Download failed")
 
+    safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", rec.get("original_filename") or "file")[:120]
     return Response(
         content=data,
         media_type=rec.get("content_type", content_type),
-        headers={"Content-Disposition": f'inline; filename="{rec.get("original_filename", "file")}"'},
+        headers={"Content-Disposition": f'inline; filename="{safe_name}"'},
     )
 
 
@@ -967,6 +991,11 @@ async def ai_match_applicants(job_id: str, user: dict = Depends(get_current_user
 
 # --- Seed ---
 async def seed_data():
+    # Opt-in only — never seed demo accounts/passwords in production by default
+    if os.environ.get("SEED_DEMO_DATA", "").strip().lower() not in ("1", "true", "yes"):
+        logger.info("Skipping demo seed (set SEED_DEMO_DATA=true to enable)")
+        return
+
     # Users
     async def ensure_user(email: str, password: str, name: str, role: str, extras: dict) -> ObjectId:
         u = await db.users.find_one({"email": email})
@@ -1240,13 +1269,17 @@ register_storage_routes(
 
 app.include_router(api)
 
+_cors_raw = os.environ.get("CORS_ORIGINS", "http://localhost:3000").strip()
+_cors_origins = [o.strip() for o in _cors_raw.split(",") if o.strip()]
+if not _cors_origins:
+    _cors_origins = ["http://localhost:3000"]
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=["*"],
-    allow_origin_regex=".*",
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_cors_origins,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With"],
 )
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

@@ -36,11 +36,10 @@ export async function ensureProfile({ name, role } = {}) {
   if (!user) throw new Error("You must be signed in.");
 
   const meta = user.user_metadata || {};
-  // Never create admin via client signup metadata
-  const resolvedRole = resolveAuthRole(role, meta.role, meta.intended_role) === "admin"
-    ? "student"
-    : resolveAuthRole(role, meta.role, meta.intended_role);
-  const createRole = resolvedRole === "client" ? "client" : "student";
+  // Never create admin via client signup metadata (resolveAuthRole ignores admin)
+  const createRole = resolveAuthRole(role, meta.role, meta.intended_role) === "client"
+    ? "client"
+    : "student";
   const resolvedName = String(
     name || meta.full_name || meta.name || user.email?.split("@")[0] || ""
   ).trim();

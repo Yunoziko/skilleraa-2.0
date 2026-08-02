@@ -340,6 +340,32 @@ def register_payment_routes(api_router, *, decode_token, supabase_url_getter, se
         if payment.get("razorpay_order_id") != body.razorpay_order_id:
             raise HTTPException(status_code=400, detail="Order mismatch")
 
+        apps = _supabase_rest(
+            "GET",
+            "applications",
+            supabase_url=supabase_url,
+            service_key=service_key,
+            params={
+                "id": f"eq.{payment['application_id']}",
+                "select": "id,status,freelancer_id,bid_amount,job_id,jobs(id,client_id)",
+            },
+        )
+        if not apps:
+            raise HTTPException(status_code=404, detail="Application not found")
+        app = apps[0]
+        job = app.get("jobs") or {}
+        if job.get("client_id") != auth["id"]:
+            raise HTTPException(status_code=403, detail="Not your job")
+        if app.get("status") not in ("accepted", "completed"):
+            raise HTTPException(status_code=400, detail="Application is not payable")
+        expected_amount = float(app.get("bid_amount") or 0)
+        if expected_amount <= 0:
+            raise HTTPException(status_code=400, detail="Invalid bid amount")
+        if abs(float(payment.get("amount") or 0) - expected_amount) > 0.009:
+            raise HTTPException(status_code=400, detail="Payment amount does not match bid")
+        if payment.get("freelancer_id") != app.get("freelancer_id"):
+            raise HTTPException(status_code=400, detail="Payment payee mismatch")
+
         if not _verify_signature(body.razorpay_order_id, body.razorpay_payment_id, body.razorpay_signature):
             _supabase_rest(
                 "PATCH",
@@ -351,8 +377,8 @@ def register_payment_routes(api_router, *, decode_token, supabase_url_getter, se
             )
             raise HTTPException(status_code=400, detail="Invalid payment signature")
 
-        amount = float(payment.get("amount") or 0)
-        freelancer_id = payment["freelancer_id"]
+        amount = expected_amount
+        freelancer_id = app["freelancer_id"]
         wallet = _ensure_wallet(supabase_url, service_key, freelancer_id)
 
         # Idempotency: skip wallet credit if a credit txn already exists for this payment

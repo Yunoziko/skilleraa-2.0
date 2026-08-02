@@ -13,6 +13,7 @@ import {
   clearAuthEphemeralState,
   mapSupabaseUser,
   resolveAuthRole,
+  resolveAppRole,
   completeAuthRedirect,
   AUTH_CALLBACK_PATH,
   RESET_PASSWORD_PATH,
@@ -129,7 +130,7 @@ export function AuthProvider({ children }) {
           ...profile,
           id: dbProfile.id || profile?.id,
           name: dbProfile.full_name || profile?.name,
-          role: resolveAuthRole(dbProfile.role, profile?.role),
+          role: resolveAppRole(dbProfile.role, profile?.role),
           status: dbProfile.status || "active",
           avatar_url: dbProfile.avatar_url || profile?.avatar_url || "",
         };
@@ -155,7 +156,7 @@ export function AuthProvider({ children }) {
         ...profile,
         ...backendExtras,
         id: supabaseId,
-        role: resolveAuthRole(supabaseRole, profile?.role),
+        role: resolveAppRole(supabaseRole, profile?.role),
         name: backendExtras.name || profile?.name,
       };
     }

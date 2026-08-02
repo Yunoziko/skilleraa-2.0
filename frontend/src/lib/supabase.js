@@ -83,12 +83,18 @@ export function clearAuthEphemeralState() {
   clearPendingRole();
 }
 
-/** Normalize role from metadata / overrides. Admin only when present in DB profile. */
+/** Normalize signup/session role. Never trust client metadata for admin. */
 export function resolveAuthRole(...candidates) {
   for (const c of candidates) {
-    if (c === "admin" || c === "client" || c === "student") return c;
+    if (c === "client" || c === "student") return c;
   }
   return "student";
+}
+
+/** App role including admin — only when read from DB profile (or trusted override). */
+export function resolveAppRole(dbRole, ...fallbacks) {
+  if (dbRole === "admin" || dbRole === "client" || dbRole === "student") return dbRole;
+  return resolveAuthRole(...fallbacks);
 }
 
 /** Map a Supabase auth user into the Skilleraa app user shape (no backend required). */

@@ -50,6 +50,22 @@ def _ext(filename: str) -> str:
     return filename.rsplit(".", 1)[-1].lower()
 
 
+def _assert_magic_bytes(ext: str, data: bytes) -> None:
+    """Reject extension/MIME spoofing when content signatures do not match."""
+    if ext == "pdf":
+        if not data.startswith(b"%PDF"):
+            raise HTTPException(status_code=400, detail="File content is not a valid PDF")
+    elif ext == "png":
+        if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+            raise HTTPException(status_code=400, detail="File content is not a valid PNG")
+    elif ext in {"jpg", "jpeg"}:
+        if not data.startswith(b"\xff\xd8\xff"):
+            raise HTTPException(status_code=400, detail="File content is not a valid JPEG")
+    elif ext == "zip":
+        if not (data.startswith(b"PK\x03\x04") or data.startswith(b"PK\x05\x06") or data.startswith(b"PK\x07\x08")):
+            raise HTTPException(status_code=400, detail="File content is not a valid ZIP")
+
+
 def register_storage_routes(
     api_router,
     *,
@@ -131,6 +147,7 @@ def register_storage_routes(
         if size > max_bytes:
             mb = max_bytes // (1024 * 1024)
             raise HTTPException(status_code=400, detail=f"File too large (max {mb} MB)")
+        _assert_magic_bytes(ext, data)
 
         # Fetch previous path for cleanup
         prev_path = None
