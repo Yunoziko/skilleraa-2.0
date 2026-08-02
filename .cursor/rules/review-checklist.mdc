@@ -1,33 +1,45 @@
 ---
-description: Mandatory pre-change and code review checklist for Skilleraa
+description: Mandatory pre-code engineering review and post-work scorecard
 alwaysApply: true
 ---
 
-# Skilleraa — Review Checklist
+# Skilleraa — Engineering Review & Scorecard
 
-## Before writing code (mandatory)
-Verify all of the following:
+## Before writing ANY code (mandatory)
+Search and read first. Check every item:
 
-1. **Existing implementation** — read related pages, services, migrations, routes  
-2. **Duplicate components** — reuse `components/` and shells; do not copy UI  
-3. **Duplicate APIs** — extend `lib/*Service.js` / existing FastAPI routers  
-4. **Duplicate SQL** — check `supabase/migrations/` before new tables/policies  
-5. **Duplicate hooks / helpers** — search `lib/` and `context/` first  
-6. **Build status** — plan changes that keep `npm run lint` + `CI=true npm run build` green  
-7. **Security** — RLS, authz, uploads, secrets, admin gates  
-8. **Performance** — avoid N+1 selects, fat bundles, needless re-renders  
-9. **Mobile responsiveness** — match existing breakpoints and layouts  
+| Check | Where to look |
+|-------|----------------|
+| Existing implementation | Related `pages/`, `components/`, `lib/`, `backend/`, migrations |
+| Duplicate logic | Same flow already solved elsewhere |
+| Duplicate API | FastAPI routers + `lib/*Service.js` + existing endpoints |
+| Duplicate component | `components/` + layout shells |
+| Duplicate SQL | `supabase/migrations/` tables, policies, RPCs |
+| Existing utility | `lib/uiClasses.js`, `lib/logger.js`, helpers |
+| Existing hook / context | `context/`, any `use*` patterns in src |
+| Existing service | `lib/*Service.js`, `profilesService`, payments, storage |
 
-If a duplicate or safer extension exists, **modify that** instead of adding files.
+**Rule:** If an existing implementation is found → **MODIFY IT**.  
+Do **not** create another implementation, file, API, or migration that duplicates it.
 
-## When reviewing changes
-**Critical:** auth bypass, payment forge, secret leak, RLS gap, data loss migration  
-**High:** IDOR, missing role checks, broken CORS, unsafe uploads  
-**Medium:** missing loading/error/empty states, noisy queries, a11y gaps  
-**Low:** naming, dead imports, copy polish  
+Also verify: build plan, security (RLS/authz/secrets), performance, mobile.
+
+## After completing work (mandatory scorecard)
+Always report (0–100 integers + one-line rationale each):
+
+1. **Project Health Score** — overall production readiness of touched area  
+2. **Architecture Score** — fit with existing modules / no duplication  
+3. **Security Score** — authz, RLS, secrets, uploads, admin  
+4. **Performance Score** — queries, bundle, re-renders  
+5. **Code Quality Score** — clarity, DRY, error/loading/empty states  
+6. **Build Status** — `lint` / `build` / backend import (pass|fail|not run)  
+7. **Git Recommendation** — exact `git add` / `git commit -m "…"` (never push unless asked)
+
+## Severity when reviewing
+**Critical** → auth bypass, payment forge, secret leak, RLS gap, data loss  
+**High** → IDOR, missing role checks, CORS, unsafe uploads  
+**Medium** → missing states, noisy queries, a11y  
+**Low** → naming, dead imports, copy  
 
 ## Done means
-- No TODOs / placeholders  
-- No breaking UX redesign unless requested  
-- Migrations additive + data-preserving  
-- Manual test steps known for the touched flow  
+No TODOs/placeholders · no UI redesign unless requested · additive migrations · modify-over-create respected  
