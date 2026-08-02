@@ -5,6 +5,7 @@ import { Toaster } from "sonner";
 
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import ProtectedRoute from "@/components/layout/ProtectedRoute";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
@@ -121,6 +122,7 @@ function App() {
       <Toaster position="top-center" />
       <div className="App">
         <BrowserRouter>
+          <ErrorBoundary>
           <Routes>
             {/* Public */}
             <Route path="/" element={<Landing />} />
@@ -383,6 +385,7 @@ function App() {
 
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </ErrorBoundary>
         </BrowserRouter>
       </div>
     </AuthProvider>

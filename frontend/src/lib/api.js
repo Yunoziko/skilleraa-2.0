@@ -1,8 +1,13 @@
 import axios from "axios";
 import { supabase } from "@/lib/supabase";
+import { logger } from "@/lib/logger";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
 export const API_BASE = `${BACKEND_URL}/api`;
+
+if (!BACKEND_URL) {
+  logger.warn("REACT_APP_BACKEND_URL is not set — API calls to FastAPI will fail");
+}
 
 const api = axios.create({
   baseURL: API_BASE,

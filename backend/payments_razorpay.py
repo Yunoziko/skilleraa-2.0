@@ -322,6 +322,8 @@ def register_payment_routes(api_router, *, decode_token, supabase_url_getter, se
         if auth["role"] != "client":
             raise HTTPException(status_code=403, detail="Only clients can verify payments")
 
+        logger.info("Payment verify requested payment_id=%s client=%s", body.payment_id, auth["id"])
+
         rows = _supabase_rest(
             "GET",
             "payments",

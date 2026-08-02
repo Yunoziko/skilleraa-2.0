@@ -3,6 +3,9 @@
 # IDE and editors
 .idea/
 .vscode/
+*.swp
+*.swo
+*~
 
 # Dependencies
 node_modules/
@@ -16,21 +19,35 @@ node_modules/
 !.yarn/releases
 !.yarn/versions
 
-# Testing
+# Testing / coverage
 /coverage
+coverage/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.tox/
+.nox/
 
-# Next.js
+# Next.js / misc frameworks (defensive)
 /.next/
 /out/
 next-env.d.ts
 *.tsbuildinfo
 
-# Production builds
+# Production builds & CRA artifacts
 /build
+**/build/
 dist/
 dist
+frontend/build/
 
-# Environment files (comprehensive coverage)
+# Environment files (never commit secrets)
+.env
+.env.*
+*.env
+!.env.example
+!**/.env.example
 
 *token.json*
 *credentials.json*
@@ -40,29 +57,36 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*.log
 dump.rdb
 
 # System files
 .DS_Store
+Thumbs.db
 *.pem
 
 # Python
 __pycache__/
-*pyc*
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
 venv/
 .venv/
+.python-version
 
-# Development tools
+# Development tools / platform local state
 chainlit.md
 .chainlit
 .ipynb_checkpoints/
 .ac
-
-# Deployment
+# Keep .emergent/ in the repo (platform metadata). Do not delete on disk.
 .vercel
 
 # Data and databases
 agenthub/agents/youtube/db
+*.sqlite
+*.sqlite3
 
 # Archive files and large assets
 **/*.zip
@@ -75,14 +99,20 @@ agenthub/agents/youtube/db
 
 # Build caches
 .cache/
+**/.cache/
+frontend/node_modules/.cache/
 
+# Local secrets / agent memory credentials (never commit)
 memory/test_credentials.md
 
 # Mobile development
 android-sdk/
-.env
-.env.*
-*.env
 credentials.json
 *.key
 .credentials
+
+# Root lockfile without a root package.json (frontend owns deps)
+/package-lock.json
+
+# Nested git config should not live in the app repo
+.gitconfig

@@ -22,6 +22,14 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
 
 
+# --- Logging (configure early so import-time helpers can use it) ---
+_LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=getattr(logging, _LOG_LEVEL, logging.INFO),
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
+logger = logging.getLogger("skilleraa")
+
 # --- Config ---
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET", "")
@@ -1282,5 +1290,19 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With"],
 )
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger("skilleraa")
+
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next):
+    """Log method/path/status without tokens or bodies."""
+    started = datetime.now(timezone.utc)
+    response = await call_next(request)
+    if request.url.path.startswith("/api"):
+        elapsed_ms = (datetime.now(timezone.utc) - started).total_seconds() * 1000
+        logger.info(
+            "%s %s -> %s (%.1fms)",
+            request.method,
+            request.url.path,
+            response.status_code,
+            elapsed_ms,
+        )
+    return response
