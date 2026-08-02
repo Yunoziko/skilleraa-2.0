@@ -1,0 +1,43 @@
+---
+description: Skilleraa secrets, authz, uploads, RLS security rules
+alwaysApply: true
+---
+
+# Skilleraa — Security
+
+## Environment variables
+- Frontend: public keys only (`REACT_APP_*`)
+- Backend: service role, JWT secret, Razorpay secret, Mongo URL
+- Never commit `.env`; keep `.env.example` placeholders only
+- `CORS_ORIGINS` = explicit allowlist (never `*` with credentials)
+- `SEED_DEMO_DATA=false` in beta/prod
+
+## Secret handling
+- No hardcoded keys/tokens in source
+- Never log Authorization headers, JWTs, or payment signatures
+- Never put JWT in query strings (`?auth=`)
+- Rotate any secret that appeared in logs or chat
+
+## Authentication
+- Supabase Auth is identity source
+- Verify API JWTs with `SUPABASE_JWT_SECRET` (audience `authenticated`)
+- Suspended users: sign out client-side; block mutations via `is_active_account()`
+
+## Authorization
+- UI: `ProtectedRoute role="…"` is UX only — **RLS + API checks are real authz**
+- Admin: `profiles.role = 'admin'` in DB only; never from `user_metadata`
+- Use `resolveAuthRole` for student/client; `resolveAppRole(dbRole)` for admin
+- Payments: clients pay own jobs; verify rebinds amount/payee to application bid
+- Files: download/upload only for owner (or storage policies for hiring clients)
+
+## Upload validation
+- Allowlists: ext + MIME + magic bytes + max size
+- Paths: `{userId}/{uuid}.ext` under private buckets
+- Sanitize download filenames (Content-Disposition)
+
+## RLS rules
+- Enable RLS on every public table
+- Anon: minimal (e.g. open jobs; non-sensitive profile columns)
+- Authenticated: least privilege; no client write on `payments` / wallets
+- Admin RPCs: `SECURITY DEFINER` + internal `is_admin()` checks; revoke anon execute
+- Prefer column locks/triggers for role, status, ratings, payment fields

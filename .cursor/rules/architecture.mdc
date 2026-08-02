@@ -1,0 +1,45 @@
+---
+description: Skilleraa frontend/backend flows (auth, chat, payments, storage)
+alwaysApply: true
+---
+
+# Skilleraa — Architecture
+
+## Frontend
+- Entry: `frontend/src/index.js` → `ErrorBoundary` → QueryClient → `App.js`
+- Auth: `context/AuthContext.jsx` + `lib/supabase.js` + `lib/profilesService.js`
+- Data: `lib/*Service.js` (Supabase client + RLS); FastAPI via `lib/api.js` (Bearer)
+- Routes: `ProtectedRoute` with `role` (`student` | `client` | `admin`)
+- Layouts: `DashboardShell`, `AdminShell`, `Navbar` / `Footer`
+- UI tokens: `lib/uiClasses.js`; logger: `lib/logger.js`
+
+## Backend
+- `server.py`: auth sync, profiles (Mongo), legacy jobs/files, CORS, request logging
+- `payments_razorpay.py`: create order + verify (service role → Supabase)
+- `storage_uploads.py`: resume/portfolio → Storage + profile path update
+- JWT: verify Supabase access token with `SUPABASE_JWT_SECRET`
+
+## API flow
+Browser → Supabase (anon + user JWT) for CRUD under RLS  
+Browser → `REACT_APP_BACKEND_URL/api/*` with Bearer for payments/uploads/sync  
+Backend → Supabase REST with **service role** only for privileged writes
+
+## Database flow
+Migrations in `supabase/migrations/` (lexicographic). Core tables: `profiles`, `jobs`, `applications`, `messages`, `payments`, `wallets`, `wallet_transactions`, `reviews`, `admin_audit_logs`.  
+RLS + triggers enforce role, status transitions, rating aggregates.
+
+## Authentication flow
+1. Supabase Auth (email / OAuth)  
+2. Session in client; `ensureProfile` / `claim_signup_role` for student|client  
+3. Admin role **only** via DB (`profiles.role = 'admin'`) — never metadata  
+4. Suspended → sign out; mutations gated by `is_active_account()`  
+5. Optional Mongo sync via `POST /api/auth/sync` (do not overwrite Supabase `id`/role)
+
+## Chat flow
+Messages allowed when application `accepted|completed` and participants match job client / freelancer. Realtime subscribe on `messages`. Content immutable (trigger).
+
+## Payment flow
+Client → API create order (bid amount, accepted app) → Razorpay Checkout → API verify signature → mark `paid` + wallet credit (service role). Clients cannot insert/update payments via RLS.
+
+## Storage flow
+Upload API validates MIME/ext/magic/size → private bucket path `{uid}/{uuid}.ext` → `profiles.resume_url` / `portfolio_url`. Clients read only current path for applicants on pending|accepted|completed apps.

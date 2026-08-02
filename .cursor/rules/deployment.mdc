@@ -1,0 +1,39 @@
+---
+description: Skilleraa Vercel, API, Supabase, Razorpay, domain deploy guide
+alwaysApply: true
+---
+
+# Skilleraa — Deployment
+
+## Frontend (Vercel)
+- Root: `frontend`
+- Build: `npm run build` · Output: `build`
+- Env: `REACT_APP_SUPABASE_URL`, `REACT_APP_SUPABASE_ANON_KEY`, `REACT_APP_BACKEND_URL` (API origin, no trailing slash)
+- Ensure SPA deep-link rewrites to `index.html`
+
+## Backend (separate host)
+- Run: `uvicorn server:app --host 0.0.0.0 --port $PORT` from `backend/`
+- Set full backend env from `.env.example` (`SEED_DEMO_DATA=false`)
+- `CORS_ORIGINS` = production frontend origin(s) only
+- Prefer Railway/Render/Fly over Vercel Python for uploads/payments timeouts
+
+## Supabase production
+- Apply `supabase/migrations/` in order
+- Auth Site URL + redirect URLs = production domain(s)
+- Enable leaked-password protection
+- Buckets `resumes` / `portfolios` private
+- Promote admin: `update profiles set role='admin' where id='…'`
+
+## Razorpay production
+- Test mode for beta; Live keys only after smoke pass
+- Backend: `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_CURRENCY=INR`
+- Verify signature server-side; never trust client amount alone
+
+## Domain configuration
+1. Attach domain on Vercel + API host (TLS)
+2. Update Supabase Auth URLs
+3. Update `CORS_ORIGINS` + `REACT_APP_BACKEND_URL`
+4. Redeploy frontend after env changes
+5. Smoke: signup → apply → accept → chat → pay → review → admin
+
+See also: `DEPLOYMENT.md`, `RELEASE_CHECKLIST.md`

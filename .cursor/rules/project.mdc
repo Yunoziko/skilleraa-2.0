@@ -1,0 +1,45 @@
+---
+description: Skilleraa project overview, stack, structure, env, philosophy
+alwaysApply: true
+---
+
+# Skilleraa — Project
+
+## Overview
+Student freelancing marketplace for beginners. Roles: **student**, **client**, **admin**.
+
+## Vision
+Help students get first paid work; help clients hire affordable early-career talent. Ship stable, secure SaaS — quality over speed.
+
+## Tech stack (production truth)
+| Layer | Tech |
+|-------|------|
+| Frontend | React 19, CRA+CRACO, Tailwind, React Router 7, TanStack Query, Supabase JS, Sonner, Framer Motion, Recharts (admin) |
+| Backend | FastAPI, PyJWT, Motor/Mongo (legacy sync paths) |
+| Data / Authz | Supabase Postgres + **RLS** (source of truth) |
+| Storage | Supabase Storage (`resumes`, `portfolios`) |
+| Realtime | Supabase Realtime (messages) |
+| Payments | Razorpay (INR) |
+| Deploy | Vercel (frontend); API hosted separately |
+
+Forms today: controlled inputs. Prefer `react-hook-form` + `zod` only when adding complex multi-step forms.
+
+## Folder structure
+```
+frontend/src/{pages,components,context,lib}
+backend/{server.py,payments_razorpay.py,storage_uploads.py}
+api/index.py                 # Vercel Python entry
+supabase/migrations/         # ordered SQL + RLS
+.env.example                 # full template
+```
+
+## Environment variables
+**Frontend only:** `REACT_APP_SUPABASE_URL`, `REACT_APP_SUPABASE_ANON_KEY`, `REACT_APP_BACKEND_URL`  
+**Backend secrets:** `MONGO_URL`, `DB_NAME`, `SUPABASE_*` (incl. service role + JWT secret), `CORS_ORIGINS`, `RAZORPAY_*`, `SEED_DEMO_DATA=false`, `LOG_LEVEL`  
+Never put service role / JWT / Razorpay secret in the frontend.
+
+## Coding philosophy
+- Extend existing modules; no drive-by rewrites or UI redesigns
+- Supabase + RLS for product authz; FastAPI for payments, uploads, sync
+- Production-ready: loading / empty / error states, a11y, mobile
+- No secrets, no TODOs, no placeholders, no duplicate components/APIs

@@ -1,0 +1,49 @@
+---
+description: Skilleraa naming, React, FastAPI, SQL, Tailwind conventions
+alwaysApply: true
+---
+
+# Skilleraa — Coding Style
+
+## Naming
+- Components / pages: `PascalCase.jsx` (`StudentDashboard.jsx`)
+- Libs / hooks / utils: `camelCase.js` (`jobsService.js`, `useX` if hooks added)
+- SQL migrations: `YYYYMMDDHHMMSS_snake_description.sql`
+- Python modules: `snake_case.py`
+- Env vars: `SCREAMING_SNAKE`; frontend must use `REACT_APP_` prefix
+- Test ids: `data-testid="kebab-case"`
+
+## React
+- Function components only; colocate page logic with existing shells
+- Data in `lib/*Service.js` — not inline Supabase in deep trees when a service exists
+- Always handle loading, error (`ErrorState`), empty (`EmptyState`)
+- Prefer existing `uiClasses` / patterns over new design systems
+- No `dangerouslySetInnerHTML`; no new `console.log` (use `lib/logger.js`)
+- Avoid new `useMemo`/`useCallback` unless profiling shows need
+- Do not duplicate components — extend `ConfirmModal`, `ErrorBoundary`, etc.
+
+## FastAPI
+- Validate with Pydantic; return clear HTTP errors
+- Auth via Bearer JWT; check ownership/role before side effects
+- Log method/path/status — never tokens or bodies
+- Keep payments/uploads in dedicated modules
+- `SEED_DEMO_DATA` must stay off in production
+
+## SQL
+- Additive migrations only; never drop prod tables/data casually
+- Always RLS; prefer `security definer` + `set search_path = public` for helpers
+- Qualify columns in policies (`payments.freelancer_id`, not bare names)
+- Name policies descriptively: `"Clients can read own payments"`
+
+## Tailwind
+- Use existing tokens: `skl-border`, `font-display`, shared button classes
+- Mobile-first; match spacing/radius used on sibling pages
+- No purple-glow / generic AI theme drift; preserve current black/white Skilleraa look
+
+## Component structure
+```
+pages/{role|public}/Feature.jsx  → shell + data + UI
+components/                      → reusable UI
+lib/                             → API/Supabase/helpers
+context/                         → cross-cutting state (auth)
+```

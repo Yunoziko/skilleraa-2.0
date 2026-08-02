@@ -1,0 +1,39 @@
+---
+description: Skilleraa branch, commit, PR, and repo hygiene rules
+alwaysApply: true
+---
+
+# Skilleraa — Git
+
+## Branch strategy
+- `main` — production-ready
+- Feature/fix: `feat/…`, `fix/…`, `chore/…`, `security/…`
+- Prefer small PRs; one concern per branch
+
+## Commit message format
+```
+<type>: <imperative summary>
+
+Optional body: why, not what.
+```
+Types: `feat`, `fix`, `chore`, `security`, `docs`, `refactor`, `perf`  
+Examples: `feat(payments): bind verify to application bid` · `chore: repository cleanup`
+
+## Pull request checklist
+- [ ] Scope clear; no unrelated refactors
+- [ ] Migrations additive + RLS verified
+- [ ] No secrets in diff
+- [ ] Lint + frontend build pass
+- [ ] Manual smoke for touched flows
+- [ ] Docs/env updated if needed
+
+## Repository hygiene
+- Package manager: **npm** (`frontend/package-lock.json` only; no `yarn.lock`)
+- Do not commit: `node_modules`, `build`, `__pycache__`, `.venv`, `.vercel`, `.env*`
+- Do not force-push `main`; do not rewrite shared history
+- Agent: recommend commit commands after milestones; **never push** unless asked
+- After milestone, suggest:
+```bash
+git add .
+git commit -m "<meaningful message>"
+```
