@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
+import { safePostLoginPath } from "@/components/layout/ProtectedRoute";
 import { ArrowRight, GraduationCap, Briefcase } from "lucide-react";
 
 export default function Signup() {
@@ -15,7 +16,7 @@ export default function Signup() {
 
   useEffect(() => {
     if (!authLoading && user && user !== false) {
-      nav(user.role === "client" ? "/client" : "/student", { replace: true });
+      nav(safePostLoginPath(null, user.role), { replace: true });
     }
   }, [authLoading, user, nav]);
 

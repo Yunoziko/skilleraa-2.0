@@ -4,9 +4,10 @@ import {
   LayoutDashboard,
   Users,
   Briefcase,
-  Flag,
+  FileText,
+  Star,
   BarChart3,
-  Settings,
+  ScrollText,
   LogOut,
   Shield,
 } from "lucide-react";
@@ -16,9 +17,10 @@ const adminNav = [
   { to: "/admin", label: "Overview", icon: LayoutDashboard, end: true },
   { to: "/admin/users", label: "Users", icon: Users },
   { to: "/admin/jobs", label: "Jobs", icon: Briefcase },
-  { to: "/admin/reports", label: "Reports", icon: Flag },
+  { to: "/admin/applications", label: "Apps", icon: FileText },
+  { to: "/admin/reviews", label: "Reviews", icon: Star },
   { to: "/admin/analytics", label: "Analytics", icon: BarChart3 },
-  { to: "/admin/settings", label: "Settings", icon: Settings },
+  { to: "/admin/activity", label: "Audit", icon: ScrollText },
 ];
 
 export default function AdminShell({ children, title, actions }) {
@@ -69,7 +71,7 @@ export default function AdminShell({ children, title, actions }) {
               </div>
               <div className="min-w-0">
                 <div className="text-sm font-medium truncate">{user?.name || "Platform Admin"}</div>
-                <div className="text-xs text-neutral-500 truncate">{user?.email || "offline demo"}</div>
+                <div className="text-xs text-neutral-500 truncate">{user?.email || ""}</div>
               </div>
             </div>
             <button
@@ -107,7 +109,7 @@ export default function AdminShell({ children, title, actions }) {
             </button>
           </div>
 
-          <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white/90 backdrop-blur border-t skl-border flex items-center justify-around py-2">
+          <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white/90 backdrop-blur border-t skl-border flex items-center justify-around py-2 overflow-x-auto">
             {adminNav.slice(0, 5).map((item) => (
               <NavLink
                 key={item.to}

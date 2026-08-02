@@ -4,54 +4,64 @@ import { Search, Briefcase } from "lucide-react";
 import { toast } from "sonner";
 import AdminShell from "@/components/layout/AdminShell";
 import EmptyState from "@/components/EmptyState";
+import ErrorState from "@/components/ErrorState";
 import { ListRowSkeleton } from "@/components/Skeleton";
 import { JOB_STATUSES, displayJobStatus } from "@/lib/jobStatus";
-import {
-  adminCloseJob,
-  adminDeleteJob,
-  formatAdminDate,
-  getAdminJobCategories,
-  listAdminJobs,
-  subscribeAdmin,
-} from "@/lib/mockAdmin";
+import { adminDeleteJob, fetchAdminJobs, formatAdminDate } from "@/lib/adminService";
 
 export default function AdminJobs() {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [status, setStatus] = useState("all");
-  const [category, setCategory] = useState("all");
   const [q, setQ] = useState("");
-  const categories = getAdminJobCategories();
+  const [busyId, setBusyId] = useState(null);
 
-  const load = () => {
-    setJobs(listAdminJobs({ status, category, q }));
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    load();
-    return subscribeAdmin(load);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, category, q]);
-
-  const onClose = (id) => {
+  const load = async () => {
+    setLoading(true);
+    setError("");
     try {
-      adminCloseJob(id);
-      toast.success("Job closed");
-      load();
+      setJobs(await fetchAdminJobs({ status, q }));
     } catch (e) {
-      toast.error(e.message || "Could not close job");
+      setError(e?.message || "Failed to load jobs");
+      setJobs([]);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const onDelete = (id, title) => {
-    if (!window.confirm(`Delete “${title}”? This is a mock delete (local only).`)) return;
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const list = await fetchAdminJobs({ status, q });
+        if (active) setJobs(list);
+      } catch (e) {
+        if (!active) return;
+        setError(e?.message || "Failed to load jobs");
+        setJobs([]);
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [status, q]);
+
+  const onDelete = async (id, title) => {
+    if (!window.confirm(`Delete “${title}”? This cannot be undone.`)) return;
+    setBusyId(id);
     try {
-      adminDeleteJob(id);
-      toast.success("Job deleted (mock)");
-      load();
+      await adminDeleteJob(id);
+      toast.success("Job deleted");
+      await load();
     } catch (e) {
-      toast.error(e.message || "Could not delete");
+      toast.error(e?.message || "Could not delete");
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -81,23 +91,12 @@ export default function AdminJobs() {
             </option>
           ))}
         </select>
-        <select
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          className="border skl-border rounded-full px-4 py-2.5 text-sm bg-white outline-none"
-          data-testid="admin-jobs-category-filter"
-        >
-          <option value="all">All categories</option>
-          {categories.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
       </div>
 
       {loading ? (
         <ListRowSkeleton count={5} />
+      ) : error ? (
+        <ErrorState title="Couldn’t load jobs" description={error} onRetry={load} />
       ) : jobs.length === 0 ? (
         <EmptyState title="No jobs found" description="Try another search or filter." icon={Briefcase} />
       ) : (
@@ -124,20 +123,11 @@ export default function AdminJobs() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 shrink-0">
-                {j.status !== "closed" && j.status !== "cancelled" && (
-                  <button
-                    type="button"
-                    onClick={() => onClose(j.id)}
-                    className="text-xs px-3 py-1.5 rounded-full border skl-border hover:bg-neutral-50"
-                    data-testid={`close-job-${j.id}`}
-                  >
-                    Close job
-                  </button>
-                )}
                 <button
                   type="button"
+                  disabled={busyId === j.id}
                   onClick={() => onDelete(j.id, j.title)}
-                  className="text-xs px-3 py-1.5 rounded-full border skl-border hover:bg-neutral-50 text-neutral-700"
+                  className="text-xs px-3 py-1.5 rounded-full border skl-border hover:bg-neutral-50 text-neutral-700 disabled:opacity-60"
                   data-testid={`delete-job-${j.id}`}
                 >
                   Delete

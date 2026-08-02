@@ -12,8 +12,9 @@ import {
   YAxis,
 } from "recharts";
 import AdminShell from "@/components/layout/AdminShell";
+import ErrorState from "@/components/ErrorState";
 import { StatSkeletonGrid } from "@/components/Skeleton";
-import { getAdminAnalytics, subscribeAdmin } from "@/lib/mockAdmin";
+import { fetchAdminWeeklyAnalytics, formatRevenue } from "@/lib/adminService";
 
 const tooltipStyle = {
   background: "#fff",
@@ -23,74 +24,55 @@ const tooltipStyle = {
 };
 
 export default function AdminAnalytics() {
-  const [data, setData] = useState(null);
+  const [weeks, setWeeks] = useState(null);
+  const [error, setError] = useState("");
+
+  const load = async () => {
+    setError("");
+    try {
+      setWeeks(await fetchAdminWeeklyAnalytics());
+    } catch (e) {
+      setError(e?.message || "Failed to load analytics");
+      setWeeks(null);
+    }
+  };
 
   useEffect(() => {
-    const load = () => setData(getAdminAnalytics());
-    load();
-    return subscribeAdmin(load);
+    let active = true;
+    (async () => {
+      try {
+        const data = await fetchAdminWeeklyAnalytics();
+        if (active) setWeeks(data);
+      } catch (e) {
+        if (!active) return;
+        setError(e?.message || "Failed to load analytics");
+      }
+    })();
+    return () => {
+      active = false;
+    };
   }, []);
 
   return (
     <AdminShell title="Analytics">
-      {!data ? (
+      {error ? (
+        <ErrorState title="Couldn’t load analytics" description={error} onRetry={load} />
+      ) : !weeks ? (
         <StatSkeletonGrid count={3} />
       ) : (
         <div className="space-y-8" data-testid="admin-analytics">
           <section className="border skl-border rounded-2xl p-5 md:p-6">
             <h2 className="text-xs uppercase tracking-[0.18em] text-neutral-500 font-semibold">
-              Jobs by category
+              New users per week
             </h2>
             <div className="mt-6 h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.jobs_by_category} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <LineChart data={weeks} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={32} />
-                  <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "#f5f5f5" }} />
-                  <Bar dataKey="value" name="Jobs" fill="#000" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {data.jobs_by_category.map((c) => (
-                <div key={c.name} className="border skl-border rounded-xl px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-widest text-neutral-500">{c.name}</div>
-                  <div className="text-sm font-medium mt-0.5">{c.value}</div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="border skl-border rounded-2xl p-5 md:p-6">
-            <h2 className="text-xs uppercase tracking-[0.18em] text-neutral-500 font-semibold">
-              Monthly signups
-            </h2>
-            <div className="mt-6 h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={data.monthly_signups} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={32} />
+                  <XAxis dataKey="week" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={32} allowDecimals={false} />
                   <Tooltip contentStyle={tooltipStyle} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Line
-                    type="monotone"
-                    dataKey="students"
-                    name="Students"
-                    stroke="#000"
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="clients"
-                    name="Clients"
-                    stroke="#737373"
-                    strokeWidth={2}
-                    strokeDasharray="4 4"
-                    dot={{ r: 3 }}
-                  />
+                  <Line type="monotone" dataKey="users" name="Users" stroke="#000" strokeWidth={2} dot={{ r: 3 }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -98,17 +80,55 @@ export default function AdminAnalytics() {
 
           <section className="border skl-border rounded-2xl p-5 md:p-6">
             <h2 className="text-xs uppercase tracking-[0.18em] text-neutral-500 font-semibold">
-              Monthly completed projects
+              Jobs created per week
             </h2>
             <div className="mt-6 h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.monthly_completed} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <BarChart data={weeks} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={32} />
+                  <XAxis dataKey="week" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={32} allowDecimals={false} />
                   <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "#f5f5f5" }} />
-                  <Bar dataKey="completed" name="Completed" fill="#000" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="jobs" name="Jobs" fill="#000" radius={[6, 6, 0, 0]} />
                 </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
+
+          <section className="border skl-border rounded-2xl p-5 md:p-6">
+            <h2 className="text-xs uppercase tracking-[0.18em] text-neutral-500 font-semibold">
+              Applications per week
+            </h2>
+            <div className="mt-6 h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={weeks} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
+                  <XAxis dataKey="week" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={32} allowDecimals={false} />
+                  <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "#f5f5f5" }} />
+                  <Bar dataKey="applications" name="Applications" fill="#000" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
+
+          <section className="border skl-border rounded-2xl p-5 md:p-6">
+            <h2 className="text-xs uppercase tracking-[0.18em] text-neutral-500 font-semibold">
+              Revenue trend
+            </h2>
+            <div className="mt-6 h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={weeks} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
+                  <XAxis dataKey="week" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={40} />
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    formatter={(v) => formatRevenue(v)}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Line type="monotone" dataKey="revenue" name="Revenue" stroke="#000" strokeWidth={2} dot={{ r: 3 }} />
+                </LineChart>
               </ResponsiveContainer>
             </div>
           </section>

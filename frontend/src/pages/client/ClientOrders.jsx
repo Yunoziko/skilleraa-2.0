@@ -63,10 +63,23 @@ export default function ClientOrders() {
     }
   };
 
-  const onComplete = (id) => {
+  const onComplete = async (id) => {
     try {
-      markComplete(id);
-      toast.success("Order marked complete");
+      const updated = markComplete(id);
+      // Real hire flow: unlock reviews when order is tied to a Supabase application
+      if (updated?.application_id) {
+        try {
+          const { markApplicationCompleted } = await import("@/lib/applicationsService");
+          await markApplicationCompleted(updated.application_id);
+        } catch {
+          /* mock-only orders have no application row */
+        }
+      }
+      toast.success(
+        updated?.application_id
+          ? "Order marked complete — reviews unlocked"
+          : "Order marked complete (demo). For paid hires, use Applicants → Mark complete."
+      );
       load();
     } catch (e) {
       toast.error(e.message || "Could not complete");

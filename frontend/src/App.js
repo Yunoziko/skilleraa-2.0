@@ -42,9 +42,10 @@ import ProjectDetail from "@/pages/ProjectDetail";
 import AdminOverview from "@/pages/admin/AdminOverview";
 import AdminUsers from "@/pages/admin/AdminUsers";
 import AdminJobs from "@/pages/admin/AdminJobs";
-import AdminReports from "@/pages/admin/AdminReports";
+import AdminApplications from "@/pages/admin/AdminApplications";
+import AdminReviews from "@/pages/admin/AdminReviews";
 import AdminAnalytics from "@/pages/admin/AdminAnalytics";
-import AdminSettings from "@/pages/admin/AdminSettings";
+import AdminActivity from "@/pages/admin/AdminActivity";
 
 function AuthCallback() {
   const { handleAuthCallback } = useAuth();
@@ -65,7 +66,8 @@ function AuthCallback() {
         return;
       }
       const role = res.user?.role || "student";
-      nav(role === "client" ? "/client" : "/student", { replace: true });
+      const dest = role === "admin" ? "/admin" : role === "client" ? "/client" : "/student";
+      nav(dest, { replace: true });
     })();
 
     return () => {
@@ -321,11 +323,11 @@ function App() {
               }
             />
 
-            {/* Admin demo — disabled unless REACT_APP_ENABLE_ADMIN_DEMO=true */}
+            {/* Admin — requires profiles.role = 'admin' */}
             <Route
               path="/admin"
               element={
-                <ProtectedRoute adminDemo>
+                <ProtectedRoute role="admin">
                   <AdminOverview />
                 </ProtectedRoute>
               }
@@ -333,7 +335,7 @@ function App() {
             <Route
               path="/admin/users"
               element={
-                <ProtectedRoute adminDemo>
+                <ProtectedRoute role="admin">
                   <AdminUsers />
                 </ProtectedRoute>
               }
@@ -341,32 +343,40 @@ function App() {
             <Route
               path="/admin/jobs"
               element={
-                <ProtectedRoute adminDemo>
+                <ProtectedRoute role="admin">
                   <AdminJobs />
                 </ProtectedRoute>
               }
             />
             <Route
-              path="/admin/reports"
+              path="/admin/applications"
               element={
-                <ProtectedRoute adminDemo>
-                  <AdminReports />
+                <ProtectedRoute role="admin">
+                  <AdminApplications />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/reviews"
+              element={
+                <ProtectedRoute role="admin">
+                  <AdminReviews />
                 </ProtectedRoute>
               }
             />
             <Route
               path="/admin/analytics"
               element={
-                <ProtectedRoute adminDemo>
+                <ProtectedRoute role="admin">
                   <AdminAnalytics />
                 </ProtectedRoute>
               }
             />
             <Route
-              path="/admin/settings"
+              path="/admin/activity"
               element={
-                <ProtectedRoute adminDemo>
-                  <AdminSettings />
+                <ProtectedRoute role="admin">
+                  <AdminActivity />
                 </ProtectedRoute>
               }
             />

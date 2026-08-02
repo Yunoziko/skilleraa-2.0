@@ -269,8 +269,10 @@ export default function JobDetail() {
                   <CheckCircle2 size={18} className="mx-auto mb-1" />
                   You've already applied
                 </div>
-              ) : user?.role === "client" ? (
-                <div className="mt-4 text-xs text-neutral-500 text-center">Clients cannot apply to jobs.</div>
+              ) : user?.role && user.role !== "student" ? (
+                <div className="mt-4 text-xs text-neutral-500 text-center">
+                  Only student accounts can apply to jobs.
+                </div>
               ) : !canApply ? (
                 <div className="mt-4 text-xs text-neutral-500 text-center border skl-border rounded-xl p-4 bg-neutral-50">
                   This job is not open for applications.
@@ -282,6 +284,10 @@ export default function JobDetail() {
                     if (user === false) {
                       toast.error("Please sign in to apply");
                       nav("/login", { state: { from: `/jobs/${id}` } });
+                      return;
+                    }
+                    if (user.role !== "student") {
+                      toast.error("Only students can apply to jobs");
                       return;
                     }
                     setShowApply(!showApply);

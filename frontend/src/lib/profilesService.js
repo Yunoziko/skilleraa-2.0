@@ -16,7 +16,7 @@ export async function getProfile(userId) {
   const { data, error } = await client
     .from("profiles")
     .select(
-      "id, full_name, role, avatar_url, resume_url, portfolio_url, average_rating, review_count, created_at"
+      "id, full_name, role, status, avatar_url, resume_url, portfolio_url, average_rating, review_count, created_at"
     )
     .eq("id", userId)
     .maybeSingle();
@@ -36,22 +36,44 @@ export async function ensureProfile({ name, role } = {}) {
   if (!user) throw new Error("You must be signed in.");
 
   const meta = user.user_metadata || {};
-  const resolvedRole = resolveAuthRole(role, meta.role, meta.intended_role);
+  // Never create admin via client signup metadata
+  const resolvedRole = resolveAuthRole(role, meta.role, meta.intended_role) === "admin"
+    ? "student"
+    : resolveAuthRole(role, meta.role, meta.intended_role);
+  const createRole = resolvedRole === "client" ? "client" : "student";
   const resolvedName = String(
     name || meta.full_name || meta.name || user.email?.split("@")[0] || ""
   ).trim();
 
   const existing = await getProfile(user.id);
   if (existing) {
+    // One-time OAuth signup role claim (student ↔ client within 24h, no activity)
+    if (
+      (createRole === "client" || createRole === "student") &&
+      existing.role !== createRole &&
+      existing.role !== "admin"
+    ) {
+      try {
+        const { data: claimed, error: claimErr } = await client.rpc("claim_signup_role", {
+          p_role: createRole,
+        });
+        if (!claimErr && claimed) {
+          return { ...existing, ...claimed, status: claimed.status || existing.status || "active" };
+        }
+      } catch {
+        // Role locked or ineligible — keep existing
+      }
+    }
+
     if (resolvedName && existing.full_name !== resolvedName) {
       const { data, error } = await client
         .from("profiles")
         .update({ full_name: resolvedName })
         .eq("id", user.id)
-        .select("id, full_name, role, avatar_url, created_at")
+        .select("id, full_name, role, status, avatar_url, resume_url, portfolio_url, created_at")
         .single();
       if (error) throw error;
-      return data;
+      return { ...data, status: data.status || existing.status || "active" };
     }
     return existing;
   }
@@ -62,9 +84,9 @@ export async function ensureProfile({ name, role } = {}) {
     .insert({
       id: user.id,
       full_name: resolvedName,
-      role: resolvedRole,
+      role: createRole,
     })
-    .select("id, full_name, role, avatar_url, created_at")
+    .select("id, full_name, role, status, avatar_url, created_at")
     .maybeSingle();
 
   if (error) {

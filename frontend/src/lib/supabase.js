@@ -83,10 +83,10 @@ export function clearAuthEphemeralState() {
   clearPendingRole();
 }
 
-/** Normalize role from metadata / overrides. */
+/** Normalize role from metadata / overrides. Admin only when present in DB profile. */
 export function resolveAuthRole(...candidates) {
   for (const c of candidates) {
-    if (c === "client" || c === "student") return c;
+    if (c === "admin" || c === "client" || c === "student") return c;
   }
   return "student";
 }

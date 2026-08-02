@@ -3,10 +3,9 @@ import { useAuth } from "@/context/AuthContext";
 
 /**
  * Requires a Supabase session. Unauthenticated users are sent to /login.
- * Optional `role`: "student" | "client".
- * Optional `adminDemo`: requires REACT_APP_ENABLE_ADMIN_DEMO=true (mock admin only).
+ * Optional `role`: "student" | "client" | "admin".
  */
-export default function ProtectedRoute({ children, role, adminDemo = false }) {
+export default function ProtectedRoute({ children, role }) {
   const { user, loading } = useAuth();
   const location = useLocation();
 
@@ -22,11 +21,8 @@ export default function ProtectedRoute({ children, role, adminDemo = false }) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
 
-  if (adminDemo && process.env.REACT_APP_ENABLE_ADMIN_DEMO !== "true") {
-    return <Navigate to="/" replace />;
-  }
-
   if (role && user.role !== role) {
+    if (user.role === "admin") return <Navigate to="/admin" replace />;
     if (user.role === "client") return <Navigate to="/client" replace />;
     if (user.role === "student") return <Navigate to="/student" replace />;
     return <Navigate to="/" replace />;
@@ -35,11 +31,18 @@ export default function ProtectedRoute({ children, role, adminDemo = false }) {
   return children;
 }
 
+function roleHome(role) {
+  if (role === "admin") return "/admin";
+  if (role === "client") return "/client";
+  return "/student";
+}
+
 /** Safe post-login destination that respects role boundaries. */
 export function safePostLoginPath(from, role) {
-  const home = role === "client" ? "/client" : "/student";
+  const home = roleHome(role);
   if (!from || typeof from !== "string" || !from.startsWith("/")) return home;
   if (from.startsWith("/login") || from.startsWith("/signup") || from.startsWith("/auth")) return home;
+  if (role === "admin") return from.startsWith("/admin") ? from : home;
   if (from.startsWith("/admin")) return home;
   if (role === "student" && from.startsWith("/client")) return home;
   if (role === "client" && from.startsWith("/student")) return home;

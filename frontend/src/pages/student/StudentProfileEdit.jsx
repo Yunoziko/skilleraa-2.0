@@ -51,7 +51,10 @@ export default function StudentProfileEdit() {
       skills: Array.isArray(src.skills) ? src.skills.join(", ") : src.skills || "",
       education: src.education || "",
       experience: src.experience || local.experience || "",
-      portfolio_links: (src.portfolio_links || (src.portfolio_url ? [src.portfolio_url] : [])).join("\n"),
+      // Only treat http(s) values as portfolio links — storage paths stay as files
+      portfolio_links: (src.portfolio_links || [])
+        .filter((u) => typeof u === "string" && /^https?:\/\//i.test(u))
+        .join("\n"),
       resume_filename: src.resume_filename || local.resume_filename || "",
       resume_url: src.resume_url || "",
       portfolio_file_url: "",
@@ -63,13 +66,23 @@ export default function StudentProfileEdit() {
       fetchProfileFileFields(user.id)
         .then((files) => {
           if (!active) return;
+          const portfolioIsFile =
+            files.portfolio_url && !/^https?:\/\//i.test(files.portfolio_url);
           setForm((prev) => ({
             ...prev,
             resume_url: files.resume_url || prev.resume_url,
             resume_filename:
               prev.resume_filename || filenameFromPath(files.resume_url) || "",
-            portfolio_file_url: files.portfolio_url || prev.portfolio_file_url,
-            portfolio_filename: filenameFromPath(files.portfolio_url) || prev.portfolio_filename,
+            portfolio_file_url: portfolioIsFile
+              ? files.portfolio_url
+              : prev.portfolio_file_url,
+            portfolio_filename: portfolioIsFile
+              ? filenameFromPath(files.portfolio_url) || prev.portfolio_filename
+              : prev.portfolio_filename,
+            portfolio_links:
+              !portfolioIsFile && files.portfolio_url && /^https?:\/\//i.test(files.portfolio_url)
+                ? prev.portfolio_links || files.portfolio_url
+                : prev.portfolio_links,
           }));
         })
         .catch(() => {});
@@ -95,8 +108,9 @@ export default function StudentProfileEdit() {
       skills,
       education: form.education.trim(),
       experience: form.experience.trim(),
+      // Prefer uploaded file path; do not overwrite file path with a typed link
       portfolio_url: form.portfolio_file_url || portfolio_links[0] || "",
-      portfolio_links,
+      portfolio_links: portfolio_links.filter((u) => /^https?:\/\//i.test(u)),
       resume_url: form.resume_url || "",
       resume_filename: form.resume_filename.trim() || filenameFromPath(form.resume_url),
       availability: form.availability,

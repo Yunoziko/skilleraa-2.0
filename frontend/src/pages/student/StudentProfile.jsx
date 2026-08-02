@@ -16,6 +16,7 @@ import {
   fetchReviewsForUser,
   formatReviewDate,
 } from "@/lib/reviewsService";
+import { fetchProfileFileFields, filenameFromPath } from "@/lib/storageService";
 
 export default function StudentProfile() {
   const { user } = useAuth();
@@ -48,12 +49,24 @@ export default function StudentProfile() {
     }
     try {
       if (user?.id) {
-        const [meta, list] = await Promise.all([
+        const [meta, list, files] = await Promise.all([
           fetchProfileRating(user.id),
           fetchReviewsForUser(user.id),
+          fetchProfileFileFields(user.id),
         ]);
         setRatingMeta(meta);
         setReviews(list.slice(0, 5));
+        setProfile((prev) =>
+          prev
+            ? {
+                ...prev,
+                resume_url: files.resume_url || prev.resume_url,
+                resume_filename:
+                  prev.resume_filename || filenameFromPath(files.resume_url) || "",
+                portfolio_url: files.portfolio_url || prev.portfolio_url,
+              }
+            : prev
+        );
       }
     } catch {
       setRatingMeta({ average_rating: 0, review_count: 0 });
@@ -90,10 +103,12 @@ export default function StudentProfile() {
 
   const links = (profile.portfolio_links?.length
     ? profile.portfolio_links
-    : profile.portfolio_url
-      ? [profile.portfolio_url]
-      : []
-  ).filter(Boolean);
+    : []
+  ).filter((u) => typeof u === "string" && /^https?:\/\//i.test(u));
+  const portfolioFile =
+    profile.portfolio_url && !/^https?:\/\//i.test(profile.portfolio_url)
+      ? profile.portfolio_url
+      : "";
 
   return (
     <DashboardShell
@@ -194,13 +209,26 @@ export default function StudentProfile() {
             )}
           </Section>
 
-          <Section title="Portfolio links">
+          <Section title="Portfolio">
+            {portfolioFile ? (
+              <div className="mb-3 flex items-center gap-3 border skl-border rounded-xl p-4 bg-neutral-50">
+                <div className="h-10 w-10 rounded-xl border skl-border bg-white grid place-items-center">
+                  <FileText size={16} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-medium truncate">
+                    {filenameFromPath(portfolioFile) || "Portfolio file"}
+                  </div>
+                  <div className="text-xs text-neutral-500">Uploaded file on profile</div>
+                </div>
+              </div>
+            ) : null}
             {links.length ? (
               <ul className="space-y-2">
                 {links.map((url) => (
                   <li key={url}>
                     <a
-                      href={url.startsWith("http") ? url : `https://${url}`}
+                      href={url}
                       target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center gap-1 text-sm text-neutral-700 hover:text-black underline underline-offset-4"
@@ -210,9 +238,9 @@ export default function StudentProfile() {
                   </li>
                 ))}
               </ul>
-            ) : (
+            ) : !portfolioFile ? (
               <EmptyHint text="Add portfolio or GitHub links." />
-            )}
+            ) : null}
           </Section>
 
           <Section title="Resume">
@@ -222,10 +250,10 @@ export default function StudentProfile() {
               </div>
               <div className="min-w-0">
                 <div className="text-sm font-medium truncate">
-                  {profile.resume_filename || "Resume placeholder"}
+                  {profile.resume_filename || filenameFromPath(profile.resume_url) || "No resume"}
                 </div>
                 <div className="text-xs text-neutral-500">
-                  {profile.resume_url ? "Uploaded" : "No file uploaded yet — placeholder only while auth is paused"}
+                  {profile.resume_url ? "Uploaded" : "No file uploaded yet"}
                 </div>
               </div>
             </div>

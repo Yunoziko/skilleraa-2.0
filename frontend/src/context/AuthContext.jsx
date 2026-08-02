@@ -6,6 +6,7 @@ import {
   getAuthRedirectUrl,
   setPendingRole,
   consumePendingRole,
+  clearPendingRole,
   setPendingVerifyEmail,
   getPendingVerifyEmail,
   clearPendingVerifyEmail,
@@ -112,11 +113,24 @@ export function AuthProvider({ children }) {
         role: roleOverride || profile?.role,
       });
       if (dbProfile) {
+        if (dbProfile.status === "suspended") {
+          try {
+            await supabase.auth.signOut();
+          } catch {
+            /* ignore */
+          }
+          clearToken();
+          appliedTokenRef.current = null;
+          setSession(null);
+          setUser(false);
+          return { suspended: true };
+        }
         profile = {
           ...profile,
           id: dbProfile.id || profile?.id,
           name: dbProfile.full_name || profile?.name,
           role: resolveAuthRole(dbProfile.role, profile?.role),
+          status: dbProfile.status || "active",
           avatar_url: dbProfile.avatar_url || profile?.avatar_url || "",
         };
       }
@@ -124,18 +138,25 @@ export function AuthProvider({ children }) {
       // Trigger may already have created the row; auth still works
     }
 
-    // Soft-merge FastAPI profile when available (optional)
+    // Soft-merge FastAPI profile extras only — never replace Supabase id/role
+    const supabaseId = profile?.id;
+    const supabaseRole = profile?.role;
     const backendProfile = await trySyncProfile({
       name: profile?.name,
-      role: profile?.role,
+      role: profile?.role === "admin" ? undefined : profile?.role,
     });
     if (backendProfile && typeof backendProfile === "object") {
+      const {
+        id: _mongoId,
+        role: _mongoRole,
+        ...backendExtras
+      } = backendProfile;
       profile = {
         ...profile,
-        ...backendProfile,
-        role: resolveAuthRole(backendProfile.role, profile?.role),
-        name: backendProfile.name || profile?.name,
-        id: backendProfile.id || profile?.id,
+        ...backendExtras,
+        id: supabaseId,
+        role: resolveAuthRole(supabaseRole, profile?.role),
+        name: backendExtras.name || profile?.name,
       };
     }
 
@@ -253,6 +274,9 @@ export function AuthProvider({ children }) {
         };
       }
       const profile = await applySession(data.session, { force: true });
+      if (profile?.suspended) {
+        return { ok: false, error: "This account has been suspended. Contact support." };
+      }
       return { ok: true, user: profile };
     } catch (e) {
       return { ok: false, error: formatApiError(e.response?.data?.detail) || authErrorMessage(e) };
@@ -389,10 +413,15 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const loginWithGoogle = async (role = "student") => {
+  const loginWithGoogle = async (role) => {
     if (!supabase) return notConfiguredError();
     try {
-      setPendingRole(resolveAuthRole(role));
+      // Only set pending role on signup; login should not force student
+      if (role === "student" || role === "client") {
+        setPendingRole(resolveAuthRole(role));
+      } else {
+        clearPendingRole();
+      }
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -416,6 +445,9 @@ export function AuthProvider({ children }) {
         return { ok: false, error: error || "No session found. Try signing in again." };
       }
       const profile = await applySession(nextSession, { force: true });
+      if (profile?.suspended) {
+        return { ok: false, error: "This account has been suspended. Contact support." };
+      }
       if (!profile) {
         return { ok: false, error: "Could not restore your account. Please sign in." };
       }

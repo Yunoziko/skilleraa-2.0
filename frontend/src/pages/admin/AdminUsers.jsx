@@ -1,16 +1,17 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Search } from "lucide-react";
 import { toast } from "sonner";
 import AdminShell from "@/components/layout/AdminShell";
 import EmptyState from "@/components/EmptyState";
+import ErrorState from "@/components/ErrorState";
 import { ListRowSkeleton } from "@/components/Skeleton";
 import {
+  adminSetUserStatus,
+  fetchAdminUserCounts,
+  fetchAdminUsers,
   formatAdminDate,
-  listAdminUsers,
-  restoreUser,
-  subscribeAdmin,
-  suspendUser,
-} from "@/lib/mockAdmin";
+} from "@/lib/adminService";
 
 const ROLE_TABS = [
   { key: "all", label: "All" },
@@ -26,46 +27,81 @@ const STATUS_OPTS = [
 
 export default function AdminUsers() {
   const [users, setUsers] = useState([]);
+  const [counts, setCounts] = useState({ all: 0, student: 0, client: 0 });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [role, setRole] = useState("all");
   const [status, setStatus] = useState("all");
   const [q, setQ] = useState("");
+  const [busyId, setBusyId] = useState(null);
 
-  const load = () => {
-    setUsers(listAdminUsers({ role, status, q }));
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    load();
-    return subscribeAdmin(load);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [role, status, q]);
-
-  const allUsers = listAdminUsers();
-  const counts = {
-    all: allUsers.length,
-    student: allUsers.filter((u) => u.role === "student").length,
-    client: allUsers.filter((u) => u.role === "client").length,
-  };
-
-  const onSuspend = (id) => {
+  const load = async () => {
+    setLoading(true);
+    setError("");
     try {
-      suspendUser(id);
-      toast.success("User suspended");
-      load();
+      const [filtered, nextCounts] = await Promise.all([
+        fetchAdminUsers({ role, status, q }),
+        fetchAdminUserCounts(),
+      ]);
+      setUsers(filtered);
+      setCounts(nextCounts);
     } catch (e) {
-      toast.error(e.message || "Could not suspend");
+      setError(e?.message || "Failed to load users");
+      setUsers([]);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const onRestore = (id) => {
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const [filtered, nextCounts] = await Promise.all([
+          fetchAdminUsers({ role, status, q }),
+          fetchAdminUserCounts(),
+        ]);
+        if (!active) return;
+        setUsers(filtered);
+        setCounts(nextCounts);
+      } catch (e) {
+        if (!active) return;
+        setError(e?.message || "Failed to load users");
+        setUsers([]);
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [role, status, q]);
+
+  const onSuspend = async (id) => {
+    setBusyId(id);
     try {
-      restoreUser(id);
-      toast.success("User restored");
-      load();
+      await adminSetUserStatus(id, "suspended");
+      toast.success("User suspended");
+      await load();
     } catch (e) {
-      toast.error(e.message || "Could not restore");
+      toast.error(e?.message || "Could not suspend");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const onRestore = async (id) => {
+    setBusyId(id);
+    try {
+      await adminSetUserStatus(id, "active");
+      toast.success("User reactivated");
+      await load();
+    } catch (e) {
+      toast.error(e?.message || "Could not reactivate");
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -93,7 +129,7 @@ export default function AdminUsers() {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search name, email, company…"
+            placeholder="Search name or user id…"
             className="w-full border skl-border rounded-full pl-9 pr-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-black"
             data-testid="admin-users-search"
           />
@@ -114,6 +150,8 @@ export default function AdminUsers() {
 
       {loading ? (
         <ListRowSkeleton count={5} />
+      ) : error ? (
+        <ErrorState title="Couldn’t load users" description={error} onRetry={load} />
       ) : users.length === 0 ? (
         <EmptyState title="No users found" description="Try another search or filter." icon={Search} />
       ) : (
@@ -144,28 +182,35 @@ export default function AdminUsers() {
                     </span>
                   </div>
                   <div className="mt-1 text-xs text-neutral-500 truncate">
-                    {u.email}
-                    {u.company ? ` · ${u.company}` : ""}
-                    {u.location ? ` · ${u.location}` : ""}
+                    Rating {u.review_count ? Number(u.average_rating).toFixed(1) : "—"} · {u.review_count} reviews
                   </div>
                   <div className="mt-1 text-xs text-neutral-400">Joined {formatAdminDate(u.joined_at)}</div>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 shrink-0">
+                <Link
+                  to={`/u/${u.id}`}
+                  className="text-xs px-3 py-1.5 rounded-full border skl-border hover:bg-neutral-50"
+                  data-testid={`view-user-${u.id}`}
+                >
+                  View profile
+                </Link>
                 {u.status === "suspended" ? (
                   <button
                     type="button"
+                    disabled={busyId === u.id}
                     onClick={() => onRestore(u.id)}
-                    className="text-xs px-3 py-1.5 rounded-full bg-black text-white hover:bg-black/90"
+                    className="text-xs px-3 py-1.5 rounded-full bg-black text-white hover:bg-black/90 disabled:opacity-60"
                     data-testid={`restore-user-${u.id}`}
                   >
-                    Restore
+                    Reactivate
                   </button>
                 ) : (
                   <button
                     type="button"
+                    disabled={busyId === u.id}
                     onClick={() => onSuspend(u.id)}
-                    className="text-xs px-3 py-1.5 rounded-full border skl-border hover:bg-neutral-50"
+                    className="text-xs px-3 py-1.5 rounded-full border skl-border hover:bg-neutral-50 disabled:opacity-60"
                     data-testid={`suspend-user-${u.id}`}
                   >
                     Suspend

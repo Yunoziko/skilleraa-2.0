@@ -59,7 +59,8 @@ export default function Login() {
   const onGoogle = async () => {
     setError("");
     setLoading(true);
-    const res = await loginWithGoogle("student");
+    // Do not force a role on login — preserve existing profiles.role
+    const res = await loginWithGoogle();
     if (!res.ok) {
       setError(res.error);
       setLoading(false);
