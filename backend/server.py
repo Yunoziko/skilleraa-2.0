@@ -1242,6 +1242,12 @@ async def root():
     return {"service": "skilleraa", "status": "ok"}
 
 
+@app.get("/health")
+async def health():
+    """Railway / load-balancer liveness — no auth, no DB dependency."""
+    return {"status": "ok", "service": "skilleraa"}
+
+
 # --- Razorpay payments (Test Mode) ---
 try:
     from payments_razorpay import register_payment_routes, razorpay_configured  # noqa: E402
