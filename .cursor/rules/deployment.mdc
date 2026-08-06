@@ -17,7 +17,7 @@ alwaysApply: true
 - Image CMD: `uvicorn server:app --host 0.0.0.0 --port ${PORT}`
 - Do **not** use Nixpacks / `nixpacks.toml` / custom pip build commands
 - Leave Railway **Root Directory** empty (repo root) — do not point at `frontend`
-- Set full backend env from `backend/.env.example` (`SEED_DEMO_DATA=false`)
+- Set full backend env from `backend/.env.example` (Supabase + Razorpay; no Mongo)
 - `CORS_ORIGINS` = production frontend origin(s) only
 
 ## Supabase production

@@ -14,11 +14,10 @@ Student freelance marketplace MVP — students apply to client jobs, chat after 
 | Layer | Technology |
 |-------|------------|
 | Frontend | React 19 (CRA + CRACO), Tailwind CSS, React Router 7, TanStack Query, Supabase JS |
-| Backend | FastAPI, Motor (MongoDB), PyJWT |
+| Backend | FastAPI, PyJWT, Supabase PostgREST |
 | Auth / DB | Supabase Auth + Postgres (RLS), profiles, jobs, applications, messages, payments, reviews |
 | Payments | Razorpay (order + signature verify) |
 | Storage | Supabase Storage (`resumes`, `portfolios`) |
-| Legacy | MongoDB collections for some FastAPI/demo paths (Supabase is source of truth for product authz) |
 
 ---
 
@@ -56,7 +55,6 @@ skilleraa-2.0-main/
 
 - Node.js 18+ and npm (or yarn)
 - Python 3.11+
-- MongoDB running locally (or Atlas URI)
 - A Supabase project with migrations applied
 - Razorpay test keys (optional for non-payment flows)
 
@@ -137,13 +135,11 @@ See root [`.env.example`](./.env.example) for the full list.
 
 | Variable | Purpose |
 |----------|---------|
-| `MONGO_URL`, `DB_NAME` | Mongo connection |
 | `SUPABASE_URL`, `SUPABASE_ANON_KEY` | Supabase |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only; bypasses RLS |
 | `SUPABASE_JWT_SECRET` | Verify access tokens |
 | `CORS_ORIGINS` | Comma-separated allowed origins |
 | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_CURRENCY` | Payments |
-| `SEED_DEMO_DATA` | `false` in beta/prod |
 | `LOG_LEVEL` | `INFO` (default), `DEBUG`, `WARNING` |
 | `EMERGENT_LLM_KEY` | Optional AI matching / legacy object storage |
 

@@ -7,7 +7,7 @@ alwaysApply: true
 
 ## Environment variables
 - Frontend: public keys only (`REACT_APP_*`)
-- Backend: service role, JWT secret, Razorpay secret, Mongo URL
+- Backend: service role, JWT secret, Razorpay secret (no Mongo)
 - Never commit `.env`; keep `.env.example` placeholders only
 - `CORS_ORIGINS` = explicit allowlist (never `*` with credentials)
 - `SEED_DEMO_DATA=false` in beta/prod

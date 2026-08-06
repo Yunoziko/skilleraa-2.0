@@ -14,7 +14,7 @@ alwaysApply: true
 - UI tokens: `lib/uiClasses.js`; logger: `lib/logger.js`
 
 ## Backend
-- `server.py`: auth sync, profiles (Mongo), legacy jobs/files, CORS, request logging
+- `server.py` + `supabase_db.py`: auth sync, profiles/jobs/apps via PostgREST, CORS, logging
 - `payments_razorpay.py`: create order + verify (service role → Supabase)
 - `storage_uploads.py`: resume/portfolio → Storage + profile path update
 - JWT: verify Supabase access token with `SUPABASE_JWT_SECRET`
@@ -33,7 +33,7 @@ RLS + triggers enforce role, status transitions, rating aggregates.
 2. Session in client; `ensureProfile` / `claim_signup_role` for student|client  
 3. Admin role **only** via DB (`profiles.role = 'admin'`) — never metadata  
 4. Suspended → sign out; mutations gated by `is_active_account()`  
-5. Optional Mongo sync via `POST /api/auth/sync` (do not overwrite Supabase `id`/role)
+5. `POST /api/auth/sync` ensures `profiles` row (Supabase); never invent a second user id
 
 ## Chat flow
 Messages allowed when application `accepted|completed` and participants match job client / freelancer. Realtime subscribe on `messages`. Content immutable (trigger).

@@ -61,7 +61,10 @@ Local image check:
 
 ```bash
 docker build -f backend/Dockerfile -t skilleraa-api .
-docker run --rm -e PORT=8000 -e MONGO_URL=... -e DB_NAME=skilleraa_db -p 8000:8000 skilleraa-api
+docker run --rm -e PORT=8000 \
+  -e SUPABASE_URL=... -e SUPABASE_JWT_SECRET=... -e SUPABASE_SERVICE_ROLE_KEY=... \
+  -e CORS_ORIGINS=https://your-frontend.vercel.app \
+  -p 8000:8000 skilleraa-api
 ```
 
 ### Option B — Vercel Python (`api/index.py`)
@@ -72,8 +75,8 @@ docker run --rm -e PORT=8000 -e MONGO_URL=... -e DB_NAME=skilleraa_db -p 8000:80
 
 ### Hard requirements
 
-- `SEED_DEMO_DATA=false`
-- `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_JWT_SECRET` present
+- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_JWT_SECRET` present
+- Do **not** set `MONGO_URL` (MongoDB removed)
 - `LOG_LEVEL=INFO` (use `DEBUG` only temporarily)
 
 ---
