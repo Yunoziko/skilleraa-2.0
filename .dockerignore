@@ -1,0 +1,27 @@
+# Build context = repository root (`docker build -f backend/Dockerfile .`)
+.git
+.github
+.vercel
+.emergent
+.cursor
+frontend
+node_modules
+**/node_modules
+memory
+test_reports
+tests
+api
+backend/.venv
+backend/tests
+backend/**/__pycache__
+backend/.pytest_cache
+**/__pycache__
+**/.pytest_cache
+*.md
+.env
+.env.*
+.DS_Store
+Procfile
+runtime.txt
+.railwayignore
+requirements.txt

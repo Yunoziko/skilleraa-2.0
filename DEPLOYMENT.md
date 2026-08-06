@@ -41,23 +41,28 @@ If deep links 404, add to the Vercel project:
 
 ## 2. Backend deployment
 
-### Option A — Railway (recommended for beta)
+### Option A — Railway Docker (recommended for beta)
 
-Repo-root config deploys the FastAPI app (`railway.json`, `Procfile`, root `requirements.txt` → `backend/requirements.txt`). Leave Railway **Root Directory** empty (repository root). Do not set it to `frontend`. Let Nixpacks auto-install Python deps — do not set a custom build/pip command.
+Uses `backend/Dockerfile` (not Nixpacks). Repo-root `railway.json` sets `builder: DOCKERFILE` and `dockerfilePath: backend/Dockerfile`. Leave Railway **Root Directory** empty. Do not set it to `frontend`.
 
-1. Create a new web service from this repo.
-2. Start command (from `railway.json` / `Procfile`):
-
-```bash
-cd backend && uvicorn server:app --host 0.0.0.0 --port $PORT
-```
-
+1. Create a new web service from this GitHub repo.
+2. Confirm settings:
+   - Builder: Dockerfile
+   - Dockerfile path: `backend/Dockerfile`
+   - No custom build/start command required (image `CMD` runs uvicorn)
 3. Set every variable from `backend/.env.example` (real values).
 4. Set `CORS_ORIGINS` to your Vercel URL(s), e.g.  
    `https://skilleraa.vercel.app,https://www.yourdomain.com`
 5. Attach MongoDB (Atlas recommended). Whitelist the host’s egress IPs if required.
 6. Health check: `GET /health` should return 200.
 7. Confirm uploads: `POST /api/storage/upload` with a small PDF and Bearer token.
+
+Local image check:
+
+```bash
+docker build -f backend/Dockerfile -t skilleraa-api .
+docker run --rm -e PORT=8000 -e MONGO_URL=... -e DB_NAME=skilleraa_db -p 8000:8000 skilleraa-api
+```
 
 ### Option B — Vercel Python (`api/index.py`)
 

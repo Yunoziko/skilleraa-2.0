@@ -1,3 +1,0 @@
-# Repo-root marker for Railway/Nixpacks Python auto-detect.
-# Installs the FastAPI backend deps; do not add custom pip build commands.
--r backend/requirements.txt
