@@ -4,8 +4,9 @@ providers = ["python"]
 [variables]
 NIXPACKS_PYTHON_VERSION = "3.11"
 
+# Nixpacks provides `python`, not a global `pip` on PATH — use `python -m pip`.
 [phases.install]
-cmds = ["pip install -r backend/requirements.txt"]
+cmds = ["python -m pip install -r backend/requirements.txt"]
 
 [start]
-cmd = "cd backend && uvicorn server:app --host 0.0.0.0 --port $PORT"
+cmd = "cd backend && python -m uvicorn server:app --host 0.0.0.0 --port $PORT"
