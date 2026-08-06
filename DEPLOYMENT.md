@@ -43,14 +43,13 @@ If deep links 404, add to the Vercel project:
 
 ### Option A — Railway (recommended for beta)
 
-Repo-root config deploys the FastAPI app only (`railway.json`, `nixpacks.toml`, `Procfile`). Leave Railway **Root Directory** empty (repository root). Do not set it to `frontend`.
+Repo-root config deploys the FastAPI app (`railway.json`, `Procfile`, root `requirements.txt` → `backend/requirements.txt`). Leave Railway **Root Directory** empty (repository root). Do not set it to `frontend`. Let Nixpacks auto-install Python deps — do not set a custom build/pip command.
 
 1. Create a new web service from this repo.
-2. Build / start (from config):
+2. Start command (from `railway.json` / `Procfile`):
 
 ```bash
-python -m pip install -r backend/requirements.txt
-cd backend && python -m uvicorn server:app --host 0.0.0.0 --port $PORT
+cd backend && uvicorn server:app --host 0.0.0.0 --port $PORT
 ```
 
 3. Set every variable from `backend/.env.example` (real values).

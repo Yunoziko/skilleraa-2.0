@@ -12,9 +12,9 @@ alwaysApply: true
 - Ensure SPA deep-link rewrites to `index.html`
 
 ## Backend (Railway — repo root config)
-- Config at repo root: `railway.json`, `nixpacks.toml`, `Procfile` (forces Python; ignores frontend)
-- Build: `python -m pip install -r backend/requirements.txt` (via `nixpacks.toml`; no bare `pip`)
-- Start: `cd backend && python -m uvicorn server:app --host 0.0.0.0 --port $PORT`
+- Config: `railway.json` (start only), `Procfile`, root `requirements.txt` (`-r backend/requirements.txt`)
+- Do **not** use custom `nixpacks.toml` / manual `pip` build commands — let Nixpacks auto-detect Python
+- Start: `cd backend && uvicorn server:app --host 0.0.0.0 --port $PORT`
 - Healthcheck: `GET /health`
 - Leave Railway **Root Directory** empty (repo root) — do not point at `frontend`
 - Set full backend env from `backend/.env.example` (`SEED_DEMO_DATA=false`)
