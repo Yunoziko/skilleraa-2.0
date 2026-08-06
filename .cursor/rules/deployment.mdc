@@ -11,11 +11,15 @@ alwaysApply: true
 - Env: `REACT_APP_SUPABASE_URL`, `REACT_APP_SUPABASE_ANON_KEY`, `REACT_APP_BACKEND_URL` (API origin, no trailing slash)
 - Ensure SPA deep-link rewrites to `index.html`
 
-## Backend (separate host)
-- Run: `uvicorn server:app --host 0.0.0.0 --port $PORT` from `backend/`
-- Set full backend env from `.env.example` (`SEED_DEMO_DATA=false`)
+## Backend (Railway — repo root config)
+- Config at repo root: `railway.json`, `nixpacks.toml`, `Procfile` (forces Python; ignores frontend)
+- Build: `pip install -r backend/requirements.txt`
+- Start: `cd backend && uvicorn server:app --host 0.0.0.0 --port $PORT`
+- Healthcheck: `GET /health`
+- Leave Railway **Root Directory** empty (repo root) — do not point at `frontend`
+- Set full backend env from `backend/.env.example` (`SEED_DEMO_DATA=false`)
 - `CORS_ORIGINS` = production frontend origin(s) only
-- Prefer Railway/Render/Fly over Vercel Python for uploads/payments timeouts
+- Prefer Railway over Vercel Python for uploads/payments timeouts
 
 ## Supabase production
 - Apply `supabase/migrations/` in order

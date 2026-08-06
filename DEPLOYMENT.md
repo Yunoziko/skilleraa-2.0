@@ -41,22 +41,23 @@ If deep links 404, add to the Vercel project:
 
 ## 2. Backend deployment
 
-### Option A — Railway / Render / Fly.io (recommended for beta)
+### Option A — Railway (recommended for beta)
+
+Repo-root config deploys the FastAPI app only (`railway.json`, `nixpacks.toml`, `Procfile`). Leave Railway **Root Directory** empty (repository root). Do not set it to `frontend`.
 
 1. Create a new web service from this repo.
-2. **Root / start:**
+2. Build / start (from config):
 
 ```bash
-cd backend
-pip install -r requirements.txt
-uvicorn server:app --host 0.0.0.0 --port $PORT
+pip install -r backend/requirements.txt
+cd backend && uvicorn server:app --host 0.0.0.0 --port $PORT
 ```
 
 3. Set every variable from `backend/.env.example` (real values).
 4. Set `CORS_ORIGINS` to your Vercel URL(s), e.g.  
    `https://skilleraa.vercel.app,https://www.yourdomain.com`
 5. Attach MongoDB (Atlas recommended). Whitelist the host’s egress IPs if required.
-6. Health check: `GET /api/` (or your root API route) should return 200.
+6. Health check: `GET /health` should return 200.
 7. Confirm uploads: `POST /api/storage/upload` with a small PDF and Bearer token.
 
 ### Option B — Vercel Python (`api/index.py`)
