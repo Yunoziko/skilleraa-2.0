@@ -6,36 +6,49 @@ Beta launch runbook for frontend, backend, Supabase, Razorpay, and custom domain
 
 ## 1. Frontend deployment (Vercel)
 
-### Recommended: Vercel project on `frontend/`
+This app is **Create React App (CRA) + Craco**, not Next.js. There is no `NEXT_PUBLIC_*` usage. The API runs on **Railway**; Vercel only hosts the static frontend.
 
-1. Import the Git repo in [Vercel](https://vercel.com).
-2. **Root Directory:** `frontend`
+### Recommended settings (Root Directory = `frontend`)
+
+1. Import GitHub repo `Yunoziko/skilleraa-2.0` in [Vercel](https://vercel.com).
+2. **Root Directory:** `frontend` (required — monorepo; app lives under `frontend/`)
 3. **Framework Preset:** Create React App
-4. **Build Command:** `npm run build` (or `CI=true npm run build`)
-5. **Output Directory:** `build`
-6. Environment variables (Production + Preview):
+4. **Install Command:** `npm ci` (or leave default `npm install`)
+5. **Build Command:** `CI=true npm run build`
+6. **Output Directory:** `build`
+7. SPA rewrites: `frontend/vercel.json` (already in repo)
+8. Environment variables (Production + Preview):
 
 | Name | Value |
 |------|--------|
 | `REACT_APP_SUPABASE_URL` | Supabase project URL |
 | `REACT_APP_SUPABASE_ANON_KEY` | Anon / publishable key |
-| `REACT_APP_BACKEND_URL` | Public API origin, e.g. `https://api.yourdomain.com` (no trailing slash) |
+| `REACT_APP_BACKEND_URL` | `https://skilleraa-20-production.up.railway.app` (no trailing slash) |
 
-7. Deploy. Confirm SPA routing: refresh on `/login`, `/student`, `/admin` should not 404 (CRA `public/index.html` fallback / Vercel rewrite).
+Do **not** set `NEXT_PUBLIC_API_URL` — the frontend reads `REACT_APP_BACKEND_URL` only.
 
-### Monorepo `vercel.json` (optional)
+9. Deploy. Confirm: refresh on `/login`, `/student`, `/admin` does not 404.
 
-Root `vercel.json` builds both `frontend` and `api/index.py`. Prefer a **dedicated API host** for beta (longer timeouts, simpler secrets) and point `REACT_APP_BACKEND_URL` at that host. If you use the root config, set all backend secrets in the same Vercel project and expect serverless cold starts / body size limits on uploads.
+### Reconnect if Vercel still points at an old repo/project
 
-### SPA rewrites (if needed)
+Vercel does not auto-switch when you rename or replace a GitHub repo. Local `.vercel` (gitignored) may still reference an old project name like `skilleraa-2.0-main`.
 
-If deep links 404, add to the Vercel project:
+1. Vercel Dashboard → open the **old** project (or create a **new** project — preferred if the old one is messy).
+2. **Settings → Git → Disconnect** the old repository (if connected).
+3. **Add / Connect** GitHub repo: `Yunoziko/skilleraa-2.0` (authorize the Vercel GitHub App for that org/user if the repo is missing from the list).
+4. **Settings → General → Root Directory** → `frontend` → Save.
+5. **Settings → General**: Framework = Create React App; Install / Build / Output as above.
+6. **Settings → Environment Variables**: set the three `REACT_APP_*` values for Production (and Preview if needed).
+7. **Deployments → Redeploy** (or push a commit to `main`).
+8. On Railway, set `CORS_ORIGINS` to include the new Vercel URL(s), e.g. `https://your-app.vercel.app`.
+9. In Supabase Auth, add the Vercel origin to Site URL / Redirect URLs.
 
-```json
-{
-  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
-}
-```
+### Why detection fails
+
+- Wrong GitHub App permissions (repo not installed for Vercel).
+- Project still linked to a deleted/renamed/forked repo.
+- Root Directory left empty → Vercel looks for a root `package.json` (there is none; only `frontend/package.json`).
+- Old root `vercel.json` used to build Python `api/index.py` + frontend together — that path is removed; API is on Railway only.
 
 ---
 
@@ -53,9 +66,8 @@ Uses `backend/Dockerfile` (not Nixpacks). Repo-root `railway.json` sets `builder
 3. Set every variable from `backend/.env.example` (real values).
 4. Set `CORS_ORIGINS` to your Vercel URL(s), e.g.  
    `https://skilleraa.vercel.app,https://www.yourdomain.com`
-5. Attach MongoDB (Atlas recommended). Whitelist the host’s egress IPs if required.
-6. Health check: `GET /health` should return 200.
-7. Confirm uploads: `POST /api/storage/upload` with a small PDF and Bearer token.
+5. Health check: `GET /health` should return 200.
+6. Confirm uploads: `POST /api/storage/upload` with a small PDF and Bearer token.
 
 Local image check:
 
