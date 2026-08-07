@@ -2,15 +2,27 @@ import axios from "axios";
 import { supabase } from "@/lib/supabase";
 import { logger } from "@/lib/logger";
 
-const PRODUCTION_BACKEND_URL = "https://skilleraa-20-production.up.railway.app";
+/** Production API origin (Railway). No trailing slash. */
+const PRODUCTION_API_ORIGIN = "https://skilleraa-20-production.up.railway.app";
+
+/**
+ * CRA embeds REACT_APP_*. NEXT_PUBLIC_API_URL is also supported when set on
+ * Vercel / in .env.production (injected via craco DefinePlugin).
+ */
+function rawApiOrigin() {
+  return (
+    process.env.REACT_APP_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    process.env.REACT_APP_API_URL ||
+    ""
+  );
+}
 
 function normalizeBackendUrl(raw) {
   let url = (raw || "").trim();
-  if (!url) {
-    url =
-      process.env.NODE_ENV === "production" ? PRODUCTION_BACKEND_URL : "";
+  if (!url && process.env.NODE_ENV === "production") {
+    url = PRODUCTION_API_ORIGIN;
   }
-  // Strip trailing slashes and accidental /api suffix (API_BASE adds /api)
   url = url.replace(/\/+$/, "");
   if (url.toLowerCase().endsWith("/api")) {
     url = url.slice(0, -4);
@@ -18,11 +30,13 @@ function normalizeBackendUrl(raw) {
   return url;
 }
 
-const BACKEND_URL = normalizeBackendUrl(process.env.REACT_APP_BACKEND_URL);
+const BACKEND_URL = normalizeBackendUrl(rawApiOrigin());
 export const API_BASE = BACKEND_URL ? `${BACKEND_URL}/api` : "/api";
 
 if (!BACKEND_URL) {
-  logger.warn("REACT_APP_BACKEND_URL is not set — API calls to FastAPI will fail");
+  logger.warn(
+    "API origin not set (REACT_APP_BACKEND_URL or NEXT_PUBLIC_API_URL) — FastAPI calls will fail",
+  );
 } else {
   logger.info(`API base: ${API_BASE}`);
 }

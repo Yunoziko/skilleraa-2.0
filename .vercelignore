@@ -1,4 +1,4 @@
-# Never deploy backend / Python API on Vercel — API runs on Railway.
+# Never upload Python/backend to Vercel. Frontend-only static deploy.
 api
 backend
 legacy
@@ -7,13 +7,13 @@ tests
 test_reports
 memory
 .cursor
-**/.venv
+.venv
 **/__pycache__
 **/node_modules
 frontend/node_modules
-frontend/build
 *.md
 !README.md
 railway.json
-Dockerfile
 **/Dockerfile
+.dockerignore
+design_guidelines.json

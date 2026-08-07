@@ -87,17 +87,28 @@ let webpackConfig = {
       '@': path.resolve(__dirname, 'src'),
     },
     configure: (webpackConfig) => {
+      // CRA only auto-inlines REACT_APP_*. Expose NEXT_PUBLIC_API_URL too (Railway).
+      const webpack = require("webpack");
+      const nextPublicApi =
+        process.env.NEXT_PUBLIC_API_URL ||
+        process.env.REACT_APP_BACKEND_URL ||
+        "";
+      webpackConfig.plugins.push(
+        new webpack.DefinePlugin({
+          "process.env.NEXT_PUBLIC_API_URL": JSON.stringify(nextPublicApi),
+        }),
+      );
 
       // Add ignored patterns to reduce watched directories
-        webpackConfig.watchOptions = {
-          ...webpackConfig.watchOptions,
-          ignored: [
-            '**/node_modules/**',
-            '**/.git/**',
-            '**/build/**',
-            '**/dist/**',
-            '**/coverage/**',
-            '**/public/**',
+      webpackConfig.watchOptions = {
+        ...webpackConfig.watchOptions,
+        ignored: [
+          "**/node_modules/**",
+          "**/.git/**",
+          "**/build/**",
+          "**/dist/**",
+          "**/coverage/**",
+          "**/public/**",
         ],
       };
 

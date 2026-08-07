@@ -1,0 +1,12 @@
+{
+  "name": "skilleraa-2.0",
+  "private": true,
+  "description": "Monorepo meta package — Vercel must build the CRA app under frontend/",
+  "scripts": {
+    "build": "npm ci --prefix frontend && CI=true npm run build --prefix frontend",
+    "vercel-build": "CI=true npm run build --prefix frontend"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

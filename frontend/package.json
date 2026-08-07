@@ -20,7 +20,8 @@
     "start": "craco start",
     "build": "craco build",
     "test": "craco test",
-    "lint": "eslint src --max-warnings 0"
+    "lint": "eslint src --max-warnings 0",
+    "deploy": "vercel --prod --yes"
   },
   "engines": {
     "node": ">=18"

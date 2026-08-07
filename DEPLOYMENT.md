@@ -24,8 +24,9 @@ This app is **Create React App (CRA) + Craco**, not Next.js. There is no `NEXT_P
 | `REACT_APP_SUPABASE_URL` | Supabase project URL |
 | `REACT_APP_SUPABASE_ANON_KEY` | Anon / publishable key |
 | `REACT_APP_BACKEND_URL` | `https://skilleraa-20-production.up.railway.app` (no trailing slash) |
+| `NEXT_PUBLIC_API_URL` | same Railway origin (optional alias; wired via craco) |
 
-Do **not** set `NEXT_PUBLIC_API_URL` — the frontend reads `REACT_APP_BACKEND_URL` only.
+Do **not** point the Vercel domain at Railway. API calls go to Railway from the browser; Vercel only hosts static React.
 
 9. Deploy. Confirm: refresh on `/login`, `/student`, `/admin` does not 404.
 
