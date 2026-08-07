@@ -25,20 +25,24 @@ Student freelance marketplace MVP — students apply to client jobs, chat after 
 
 ```
 skilleraa-2.0-main/
-├── frontend/                 # React app (Vercel static build)
+├── frontend/                 # React CRA (Vercel)
 │   ├── src/
 │   │   ├── components/       # UI, layout, chat, ErrorBoundary
 │   │   ├── context/          # AuthContext
 │   │   ├── lib/              # API + Supabase services
 │   │   ├── pages/            # Public, student, client, admin routes
 │   │   └── index.js
+│   ├── vercel.json
 │   └── package.json
-├── backend/                  # FastAPI app
+├── backend/                  # FastAPI (Railway)
 │   ├── server.py             # Routes, auth sync, CORS, logging
 │   ├── payments_razorpay.py  # Create order / verify
 │   ├── storage_uploads.py    # Resume & portfolio uploads
+│   ├── Dockerfile
 │   └── requirements.txt
-├── api/                      # Vercel Python entry → backend.server:app
+├── legacy/vercel-python-api/ # Disabled — do not restore as /api on Vercel
+├── vercel.json               # Frontend-only deploy when Root Directory is empty
+├── railway.json
 ├── supabase/migrations/      # Postgres schema + RLS
 ├── .env.example              # All env vars (copy into frontend/ + backend/)
 ├── DEPLOYMENT.md
