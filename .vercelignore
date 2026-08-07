@@ -1,0 +1,19 @@
+# Never deploy backend / Python API on Vercel — API runs on Railway.
+api
+backend
+legacy
+supabase
+tests
+test_reports
+memory
+.cursor
+**/.venv
+**/__pycache__
+**/node_modules
+frontend/node_modules
+frontend/build
+*.md
+!README.md
+railway.json
+Dockerfile
+**/Dockerfile

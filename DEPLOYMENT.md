@@ -48,7 +48,7 @@ Vercel does not auto-switch when you rename or replace a GitHub repo. Local `.ve
 - Wrong GitHub App permissions (repo not installed for Vercel).
 - Project still linked to a deleted/renamed/forked repo.
 - Root Directory left empty → Vercel looks for a root `package.json` (there is none; only `frontend/package.json`).
-- Old root `vercel.json` used to build Python `api/index.py` + frontend together — that path is removed; API is on Railway only.
+- Old root `api/` + Python Vercel entry served FastAPI (`{"detail":"Not Found"}` on `/`). That entry is moved to `legacy/vercel-python-api/`; root `vercel.json` deploys only the CRA frontend.
 
 ---
 
@@ -79,11 +79,11 @@ docker run --rm -e PORT=8000 \
   -p 8000:8000 skilleraa-api
 ```
 
-### Option B — Vercel Python (`api/index.py`)
+### Option B — Vercel Python (not used for beta)
 
-- Entry imports `backend.server:app`.
-- Suitable for light traffic; watch **payload limits** for resume/portfolio uploads and **execution time** for Razorpay + Storage calls.
-- Put the same secrets in Vercel Project Settings.
+Previously `api/index.py` exposed FastAPI on Vercel. That path is disabled
+(`legacy/vercel-python-api/`) because Vercel’s `/api` convention served the
+backend instead of the React app. Use Railway for the API.
 
 ### Hard requirements
 
