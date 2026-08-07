@@ -22,6 +22,9 @@
     "test": "craco test",
     "lint": "eslint src --max-warnings 0"
   },
+  "engines": {
+    "node": ">=18"
+  },
   "browserslist": {
     "production": [
       ">0.2%",

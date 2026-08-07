@@ -2,11 +2,29 @@ import axios from "axios";
 import { supabase } from "@/lib/supabase";
 import { logger } from "@/lib/logger";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
-export const API_BASE = `${BACKEND_URL}/api`;
+const PRODUCTION_BACKEND_URL = "https://skilleraa-20-production.up.railway.app";
+
+function normalizeBackendUrl(raw) {
+  let url = (raw || "").trim();
+  if (!url) {
+    url =
+      process.env.NODE_ENV === "production" ? PRODUCTION_BACKEND_URL : "";
+  }
+  // Strip trailing slashes and accidental /api suffix (API_BASE adds /api)
+  url = url.replace(/\/+$/, "");
+  if (url.toLowerCase().endsWith("/api")) {
+    url = url.slice(0, -4);
+  }
+  return url;
+}
+
+const BACKEND_URL = normalizeBackendUrl(process.env.REACT_APP_BACKEND_URL);
+export const API_BASE = BACKEND_URL ? `${BACKEND_URL}/api` : "/api";
 
 if (!BACKEND_URL) {
   logger.warn("REACT_APP_BACKEND_URL is not set — API calls to FastAPI will fail");
+} else {
+  logger.info(`API base: ${API_BASE}`);
 }
 
 const api = axios.create({

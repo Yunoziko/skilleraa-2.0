@@ -1,10 +1,13 @@
 // craco.config.js
 const path = require("path");
-require("dotenv").config();
 
-// Check if we're in development/preview mode (not production build)
-// Craco sets NODE_ENV=development for start, NODE_ENV=production for build
+// Craco sets NODE_ENV=development for start, NODE_ENV=production for build.
+// Do NOT load frontend/.env during production builds — it overrides
+// .env.production / Vercel REACT_APP_* (e.g. baking localhost into the bundle).
 const isDevServer = process.env.NODE_ENV !== "production";
+if (isDevServer) {
+  require("dotenv").config();
+}
 
 // Environment variable overrides
 const config = {
