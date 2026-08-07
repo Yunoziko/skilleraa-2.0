@@ -1,4 +1,4 @@
-# Never upload Python/backend to Vercel. Frontend-only static deploy.
+# Never deploy backend on Vercel
 api
 backend
 legacy
@@ -7,13 +7,9 @@ tests
 test_reports
 memory
 .cursor
-.venv
-**/__pycache__
 **/node_modules
-frontend/node_modules
+**/__pycache__
 *.md
-!README.md
 railway.json
 **/Dockerfile
 .dockerignore
-design_guidelines.json
