@@ -24,7 +24,7 @@
     "deploy": "vercel --prod --yes"
   },
   "engines": {
-    "node": ">=18"
+    "node": "20.x"
   },
   "browserslist": {
     "production": [

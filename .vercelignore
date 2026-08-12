@@ -1,4 +1,4 @@
-# Never deploy backend on Vercel
+# Ignore backend/Python paths. Do NOT ignore frontend/build (Vercel output).
 api
 backend
 legacy
@@ -7,9 +7,9 @@ tests
 test_reports
 memory
 .cursor
-**/node_modules
+node_modules
+frontend/node_modules
 **/__pycache__
-*.md
 railway.json
 **/Dockerfile
 .dockerignore
