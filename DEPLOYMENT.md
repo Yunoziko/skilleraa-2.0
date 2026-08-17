@@ -30,11 +30,13 @@ Config file: `frontend/vercel.json` (SPA rewrites to `index.html`). There is **n
 
 Optional alias: `NEXT_PUBLIC_API_URL` (same Railway origin). Never put `SERVICE_ROLE` or Razorpay secrets in Vercel frontend env.
 
-After deploy: set Railway `CORS_ORIGINS` to:
+After deploy: set Railway `CORS_ORIGINS` to this exact value (no `*`):
 
-`http://localhost:3000,http://127.0.0.1:3000,https://www.skilleraa.com,https://skilleraa.com,https://skilleraa-2-0.vercel.app`
+```text
+http://localhost:3000,http://127.0.0.1:3000,https://www.skilleraa.com,https://www.skilleraa.com/,https://skilleraa.com,https://skilleraa.com/,https://skilleraa-2-0.vercel.app
+```
 
-(The FastAPI app also always merges the three production origins even if Railway env is stale.)
+The FastAPI app always merges these hosts (with and without trailing slash) even if Railway env is stale or localhost-only. Never set `CORS_ORIGINS=*`.
 
 ### Supabase Auth URLs (Dashboard — required for Google / email links)
 
@@ -48,8 +50,14 @@ In [Supabase Dashboard](https://supabase.com/dashboard) → project **skilleraa*
 | | `https://www.skilleraa.com/reset-password` |
 | | `https://skilleraa.com/**` |
 | | `https://skilleraa.com/auth/callback` |
+| | `https://skilleraa.com/reset-password` |
 | | `https://skilleraa-2-0.vercel.app/**` |
 | | `http://localhost:3000/**` |
+| **Additional Allowed Origins** (CORS, if shown) | `https://www.skilleraa.com` |
+| | `https://www.skilleraa.com/` |
+| | `https://skilleraa.com` |
+| | `https://skilleraa.com/` |
+| | `http://localhost:3000` |
 
 ### Railway backend env (required for `/api/auth/sync` and protected APIs)
 
@@ -61,7 +69,7 @@ If `POST /api/auth/sync` returns **503** `Supabase auth is not configured on the
 | `SUPABASE_ANON_KEY` | Settings → API → `anon` `public` (or publishable key) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Settings → API → `service_role` (**secret** — server only) |
 | `SUPABASE_JWT_SECRET` | Settings → API → JWT Secret (**secret** — server only) |
-| `CORS_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000,https://www.skilleraa.com,https://skilleraa.com,https://skilleraa-2-0.vercel.app` |
+| `CORS_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000,https://www.skilleraa.com,https://www.skilleraa.com/,https://skilleraa.com,https://skilleraa.com/,https://skilleraa-2-0.vercel.app` |
 
 Frontend login still works without sync (Supabase Auth is browser-side), but job APIs that verify JWTs on Railway need the JWT secret.
 
@@ -111,11 +119,19 @@ Copy the **Client ID** and **Client Secret**.
    - **Redirect URLs** (add each):
      - `https://www.skilleraa.com/**`
      - `https://www.skilleraa.com/auth/callback`
+     - `https://www.skilleraa.com/reset-password`
      - `https://skilleraa.com/**`
      - `https://skilleraa.com/auth/callback`
+     - `https://skilleraa.com/reset-password`
      - `https://skilleraa-2-0.vercel.app/**`
      - `http://localhost:3000/**`
      - `http://localhost:3000/auth/callback`
+   - **Additional Allowed Origins** (CORS — add if this field exists; do **not** use `*`):
+     - `https://www.skilleraa.com`
+     - `https://www.skilleraa.com/`
+     - `https://skilleraa.com`
+     - `https://skilleraa.com/`
+     - `http://localhost:3000`
 
 App callback path (already implemented): `https://www.skilleraa.com/auth/callback` via `signInWithOAuth({ provider: "google", options: { redirectTo } })`.
 

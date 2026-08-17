@@ -299,6 +299,9 @@ export function AuthProvider({ children }) {
             : null) || authErrorMessage(e),
       };
     }
+  };
+
+  const register = async (name, email, password, role) => {
     if (!supabase) return notConfiguredError();
     try {
       const normalized = email.trim().toLowerCase();
@@ -446,7 +449,6 @@ export function AuthProvider({ children }) {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          // Production: https://www.skilleraa.com/auth/callback (from window.location.origin)
           redirectTo: getAuthRedirectUrl(AUTH_CALLBACK_PATH),
           queryParams: {
             access_type: "offline",

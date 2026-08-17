@@ -39,10 +39,21 @@ export const RESET_PASSWORD_PATH = "/reset-password";
 export const PENDING_ROLE_KEY = "skl_pending_role";
 export const PENDING_VERIFY_EMAIL_KEY = "skl_pending_verify_email";
 
+/** Canonical production site for email / OAuth redirects. */
+export const PRODUCTION_SITE_ORIGIN = "https://www.skilleraa.com";
+
+const CANONICAL_AUTH_HOSTS = new Set(["www.skilleraa.com", "skilleraa.com"]);
+
 export function getAuthRedirectUrl(path = AUTH_CALLBACK_PATH) {
-  if (typeof window === "undefined") return path;
   const normalized = path.startsWith("/") ? path : `/${path}`;
-  // Uses the current site origin (production: https://www.skilleraa.com) — never hardcode localhost.
+  if (typeof window === "undefined") {
+    return `${PRODUCTION_SITE_ORIGIN}${normalized}`;
+  }
+  // Apex and www both redirect to the canonical production origin.
+  // Localhost and Vercel previews keep their current origin.
+  if (CANONICAL_AUTH_HOSTS.has(window.location.hostname)) {
+    return `${PRODUCTION_SITE_ORIGIN}${normalized}`;
+  }
   return `${window.location.origin}${normalized}`;
 }
 

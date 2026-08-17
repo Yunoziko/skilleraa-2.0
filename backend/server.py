@@ -27,6 +27,11 @@ try:
 except ImportError:
     from backend import supabase_db as sb  # noqa: E402
 
+try:
+    from cors_origins import CORS_ORIGIN_REGEX, build_cors_allowlist
+except ImportError:
+    from backend.cors_origins import CORS_ORIGIN_REGEX, build_cors_allowlist
+
 # --- Logging ---
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
@@ -1092,36 +1097,14 @@ async def request_logging_middleware(request: Request, call_next):
 
 # CORS must be registered last so it is the outermost middleware (handles OPTIONS first).
 # Never use allow_origins=["*"] with allow_credentials=True.
-# Browser Origin never includes a trailing slash; we normalize env values the same way.
-_DEFAULT_CORS_ORIGINS = (
-    "http://localhost:3000,"
-    "http://127.0.0.1:3000,"
-    "https://www.skilleraa.com,"
-    "https://skilleraa.com,"
-    "https://skilleraa-2-0.vercel.app"
-)
-_REQUIRED_PROD_ORIGINS = (
-    "https://www.skilleraa.com",
-    "https://skilleraa.com",
-    "https://skilleraa-2-0.vercel.app",
-)
-_cors_raw = os.environ.get("CORS_ORIGINS", _DEFAULT_CORS_ORIGINS).strip()
-_cors_origins = []
-for _part in _cors_raw.split(","):
-    _o = _part.strip().rstrip("/")
-    if _o and _o not in _cors_origins:
-        _cors_origins.append(_o)
-if not _cors_origins:
-    _cors_origins = [o.strip() for o in _DEFAULT_CORS_ORIGINS.split(",") if o.strip()]
-for _origin in _REQUIRED_PROD_ORIGINS:
-    if _origin not in _cors_origins:
-        _cors_origins.append(_origin)
+_cors_origins = build_cors_allowlist(os.environ.get("CORS_ORIGINS"))
 logger.info("CORS allow_origins=%s", _cors_origins)
 
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
     allow_origins=_cors_origins,
+    allow_origin_regex=CORS_ORIGIN_REGEX,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=[
         "Authorization",
