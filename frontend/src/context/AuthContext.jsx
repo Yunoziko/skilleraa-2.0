@@ -25,7 +25,18 @@ const AuthContext = createContext(null);
 function authErrorMessage(error) {
   if (!error) return "Something went wrong. Please try again.";
   if (typeof error === "string") return error;
-  return error.message || "Something went wrong. Please try again.";
+  const msg = error.message || "";
+  // Safari: "Load failed" / Chrome: "Failed to fetch" — network/DNS/CORS to Supabase or API
+  if (
+    /load failed/i.test(msg) ||
+    /failed to fetch/i.test(msg) ||
+    /networkerror/i.test(msg) ||
+    /network request failed/i.test(msg) ||
+    error.name === "TypeError"
+  ) {
+    return "Cannot reach authentication service. Check your connection and that Supabase is online, then try again.";
+  }
+  return msg || "Something went wrong. Please try again.";
 }
 
 function notConfiguredError() {
@@ -280,11 +291,14 @@ export function AuthProvider({ children }) {
       }
       return { ok: true, user: profile };
     } catch (e) {
-      return { ok: false, error: formatApiError(e.response?.data?.detail) || authErrorMessage(e) };
+      return {
+        ok: false,
+        error:
+          (e?.response?.data?.detail != null
+            ? formatApiError(e.response.data.detail)
+            : null) || authErrorMessage(e),
+      };
     }
-  };
-
-  const register = async ({ email, password, name, role = "student" }) => {
     if (!supabase) return notConfiguredError();
     try {
       const normalized = email.trim().toLowerCase();
@@ -331,7 +345,13 @@ export function AuthProvider({ children }) {
       });
       return { ok: true, user: profile, needsVerification: false };
     } catch (e) {
-      return { ok: false, error: formatApiError(e.response?.data?.detail) || authErrorMessage(e) };
+      return {
+        ok: false,
+        error:
+          (e?.response?.data?.detail != null
+            ? formatApiError(e.response.data.detail)
+            : null) || authErrorMessage(e),
+      };
     }
   };
 
@@ -454,7 +474,13 @@ export function AuthProvider({ children }) {
       }
       return { ok: true, user: profile };
     } catch (e) {
-      return { ok: false, error: formatApiError(e.response?.data?.detail) || authErrorMessage(e) };
+      return {
+        ok: false,
+        error:
+          (e?.response?.data?.detail != null
+            ? formatApiError(e.response.data.detail)
+            : null) || authErrorMessage(e),
+      };
     }
   }, [applySession]);
 

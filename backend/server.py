@@ -1079,8 +1079,28 @@ register_storage_routes(
 
 app.include_router(api)
 
-_cors_raw = os.environ.get("CORS_ORIGINS", "http://localhost:3000").strip()
-_cors_origins = [o.strip() for o in _cors_raw.split(",") if o.strip()] or ["http://localhost:3000"]
+# Comma-separated allowlist. Trailing slashes are stripped (common misconfig).
+_DEFAULT_CORS_ORIGINS = (
+    "http://localhost:3000,"
+    "https://www.skilleraa.com,"
+    "https://skilleraa.com,"
+    "https://skilleraa-2-0.vercel.app"
+)
+_cors_raw = os.environ.get("CORS_ORIGINS", _DEFAULT_CORS_ORIGINS).strip()
+_cors_origins = [
+    o.strip().rstrip("/")
+    for o in _cors_raw.split(",")
+    if o.strip()
+] or [o.strip() for o in _DEFAULT_CORS_ORIGINS.split(",")]
+# Always allow production frontends even if Railway CORS_ORIGINS was left as localhost-only
+for _origin in (
+    "https://www.skilleraa.com",
+    "https://skilleraa.com",
+    "https://skilleraa-2-0.vercel.app",
+):
+    if _origin not in _cors_origins:
+        _cors_origins.append(_origin)
+logger.info("CORS allow_origins=%s", _cors_origins)
 
 app.add_middleware(
     CORSMiddleware,

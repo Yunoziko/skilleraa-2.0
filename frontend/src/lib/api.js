@@ -43,7 +43,8 @@ if (!BACKEND_URL) {
 
 const api = axios.create({
   baseURL: API_BASE,
-  withCredentials: true,
+  // Bearer tokens only — avoid credentialed CORS preflight failures in production
+  withCredentials: false,
 });
 
 async function getAccessToken() {
