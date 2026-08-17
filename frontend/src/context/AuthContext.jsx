@@ -446,11 +446,25 @@ export function AuthProvider({ children }) {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
+          // Production: https://www.skilleraa.com/auth/callback (from window.location.origin)
           redirectTo: getAuthRedirectUrl(AUTH_CALLBACK_PATH),
-          queryParams: { access_type: "offline", prompt: "consent" },
+          queryParams: {
+            access_type: "offline",
+            prompt: "select_account",
+          },
         },
       });
-      if (error) return { ok: false, error: authErrorMessage(error) };
+      if (error) {
+        const msg = authErrorMessage(error);
+        if (/provider is not enabled|unsupported provider/i.test(msg)) {
+          return {
+            ok: false,
+            error:
+              "Google sign-in is not enabled yet. Ask an admin to enable the Google provider in Supabase Authentication.",
+          };
+        }
+        return { ok: false, error: msg };
+      }
       return { ok: true, redirecting: true };
     } catch (e) {
       return { ok: false, error: authErrorMessage(e) };

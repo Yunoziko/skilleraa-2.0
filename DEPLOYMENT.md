@@ -74,10 +74,52 @@ Frontend login still works without sync (Supabase Auth is browser-side), but job
 
 Recreate after a project restore with `scripts/seed_demo_auth_users.sql` in the Supabase SQL editor.
 
-### Google login (Dashboard)
+### Google login (Dashboard — required; cannot be enabled from this repo)
 
-Supabase → **Authentication** → **Providers** → **Google** → Enable, then add Google Cloud OAuth Client ID/Secret.  
-Redirect URIs must include Site URL and `/auth/callback` (see Auth URL table above).
+Google OAuth Client ID/Secret are **never** stored in frontend code. They belong only in Supabase.
+
+#### A. Google Cloud Console
+
+Create (or open) an OAuth 2.0 Client ID of type **Web application**.
+
+**Authorized JavaScript origins** — add exactly:
+
+```text
+https://www.skilleraa.com
+https://skilleraa.com
+http://localhost:3000
+```
+
+**Authorized redirect URIs** — add exactly (this is the **Supabase** callback, not your app URL):
+
+```text
+https://ntplmmiqdmbricrcksvg.supabase.co/auth/v1/callback
+```
+
+Copy the **Client ID** and **Client Secret**.
+
+#### B. Supabase Dashboard → project `skilleraa` (`ntplmmiqdmbricrcksvg`)
+
+1. **Authentication → Providers → Google**
+   - Enable Google
+   - Paste **Client ID**
+   - Paste **Client Secret**
+   - Save
+
+2. **Authentication → URL Configuration**
+   - **Site URL:** `https://www.skilleraa.com`
+   - **Redirect URLs** (add each):
+     - `https://www.skilleraa.com/**`
+     - `https://www.skilleraa.com/auth/callback`
+     - `https://skilleraa.com/**`
+     - `https://skilleraa.com/auth/callback`
+     - `https://skilleraa-2-0.vercel.app/**`
+     - `http://localhost:3000/**`
+     - `http://localhost:3000/auth/callback`
+
+App callback path (already implemented): `https://www.skilleraa.com/auth/callback` via `signInWithOAuth({ provider: "google", options: { redirectTo } })`.
+
+Until Google is enabled in Supabase, authorize returns: `Unsupported provider: provider is not enabled`.
 
 ### Custom domain (Hostinger DNS → Vercel)
 

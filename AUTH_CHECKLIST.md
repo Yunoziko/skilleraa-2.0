@@ -16,8 +16,11 @@ Fill in the `PLACEHOLDER_*` values in `frontend/.env` and `backend/.env`, then r
 
 ### Supabase dashboard (one-time project config — not code)
 - [ ] Enable Email provider
-- [ ] Enable Google provider (if using “Continue with Google”)
-- [ ] Redirect URLs include: `http://localhost:3000/auth/callback`, `http://localhost:3000/reset-password`, plus production equivalents
+- [ ] Enable Google provider + Client ID/Secret (Settings never go in frontend)
+- [ ] Google Cloud **Authorized redirect URI**: `https://ntplmmiqdmbricrcksvg.supabase.co/auth/v1/callback`
+- [ ] Google Cloud **Authorized JavaScript origins**: `https://www.skilleraa.com`, `https://skilleraa.com`, `http://localhost:3000`
+- [ ] Site URL: `https://www.skilleraa.com`
+- [ ] Redirect URLs include: `https://www.skilleraa.com/auth/callback`, `https://www.skilleraa.com/**`, plus localhost equivalents
 - [ ] Confirm email template links use Site URL / redirect allow list
 
 ---

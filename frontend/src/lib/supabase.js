@@ -41,7 +41,9 @@ export const PENDING_VERIFY_EMAIL_KEY = "skl_pending_verify_email";
 
 export function getAuthRedirectUrl(path = AUTH_CALLBACK_PATH) {
   if (typeof window === "undefined") return path;
-  return `${window.location.origin}${path}`;
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  // Uses the current site origin (production: https://www.skilleraa.com) — never hardcode localhost.
+  return `${window.location.origin}${normalized}`;
 }
 
 export function setPendingRole(role) {
