@@ -30,8 +30,28 @@ Config file: `frontend/vercel.json` (SPA rewrites to `index.html`). There is **n
 
 Optional alias: `NEXT_PUBLIC_API_URL` (same Railway origin). Never put `SERVICE_ROLE` or Razorpay secrets in Vercel frontend env.
 
-After deploy: set Railway `CORS_ORIGINS` to include `https://skilleraa-2-0.vercel.app`, `https://www.skilleraa.com`, `https://skilleraa.com`.
+After deploy: set Railway `CORS_ORIGINS` to:
 
+`http://localhost:3000,http://127.0.0.1:3000,https://www.skilleraa.com,https://skilleraa.com,https://skilleraa-2-0.vercel.app`
+
+(The FastAPI app also always merges the three production origins even if Railway env is stale.)
+
+### Supabase Auth URLs (Dashboard — required for Google / email links)
+
+In [Supabase Dashboard](https://supabase.com/dashboard) → project **skilleraa** → **Authentication** → **URL Configuration**:
+
+| Setting | Exact value |
+|---------|-------------|
+| **Site URL** | `https://www.skilleraa.com` |
+| **Redirect URLs** (add each) | `https://www.skilleraa.com/**` |
+| | `https://www.skilleraa.com/auth/callback` |
+| | `https://www.skilleraa.com/reset-password` |
+| | `https://skilleraa.com/**` |
+| | `https://skilleraa.com/auth/callback` |
+| | `https://skilleraa-2-0.vercel.app/**` |
+| | `http://localhost:3000/**` |
+
+Frontend redirects use `window.location.origin` (so production uses `https://www.skilleraa.com` automatically).
 ### Custom domain (Hostinger DNS → Vercel)
 
 1. Vercel → Project → **Settings → Domains** → add `skilleraa.com` and `www.skilleraa.com`.

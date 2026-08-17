@@ -1079,37 +1079,6 @@ register_storage_routes(
 
 app.include_router(api)
 
-# Comma-separated allowlist. Trailing slashes are stripped (common misconfig).
-_DEFAULT_CORS_ORIGINS = (
-    "http://localhost:3000,"
-    "https://www.skilleraa.com,"
-    "https://skilleraa.com,"
-    "https://skilleraa-2-0.vercel.app"
-)
-_cors_raw = os.environ.get("CORS_ORIGINS", _DEFAULT_CORS_ORIGINS).strip()
-_cors_origins = [
-    o.strip().rstrip("/")
-    for o in _cors_raw.split(",")
-    if o.strip()
-] or [o.strip() for o in _DEFAULT_CORS_ORIGINS.split(",")]
-# Always allow production frontends even if Railway CORS_ORIGINS was left as localhost-only
-for _origin in (
-    "https://www.skilleraa.com",
-    "https://skilleraa.com",
-    "https://skilleraa-2-0.vercel.app",
-):
-    if _origin not in _cors_origins:
-        _cors_origins.append(_origin)
-logger.info("CORS allow_origins=%s", _cors_origins)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=_cors_origins,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With"],
-)
-
 
 @app.middleware("http")
 async def request_logging_middleware(request: Request, call_next):
@@ -1119,3 +1088,49 @@ async def request_logging_middleware(request: Request, call_next):
         elapsed_ms = (datetime.now(timezone.utc) - started).total_seconds() * 1000
         logger.info("%s %s -> %s (%.1fms)", request.method, request.url.path, response.status_code, elapsed_ms)
     return response
+
+
+# CORS must be registered last so it is the outermost middleware (handles OPTIONS first).
+# Never use allow_origins=["*"] with allow_credentials=True.
+# Browser Origin never includes a trailing slash; we normalize env values the same way.
+_DEFAULT_CORS_ORIGINS = (
+    "http://localhost:3000,"
+    "http://127.0.0.1:3000,"
+    "https://www.skilleraa.com,"
+    "https://skilleraa.com,"
+    "https://skilleraa-2-0.vercel.app"
+)
+_REQUIRED_PROD_ORIGINS = (
+    "https://www.skilleraa.com",
+    "https://skilleraa.com",
+    "https://skilleraa-2-0.vercel.app",
+)
+_cors_raw = os.environ.get("CORS_ORIGINS", _DEFAULT_CORS_ORIGINS).strip()
+_cors_origins = []
+for _part in _cors_raw.split(","):
+    _o = _part.strip().rstrip("/")
+    if _o and _o not in _cors_origins:
+        _cors_origins.append(_o)
+if not _cors_origins:
+    _cors_origins = [o.strip() for o in _DEFAULT_CORS_ORIGINS.split(",") if o.strip()]
+for _origin in _REQUIRED_PROD_ORIGINS:
+    if _origin not in _cors_origins:
+        _cors_origins.append(_origin)
+logger.info("CORS allow_origins=%s", _cors_origins)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "Accept",
+        "Accept-Language",
+        "Content-Language",
+        "X-Requested-With",
+    ],
+    expose_headers=["Content-Disposition"],
+    max_age=600,
+)
