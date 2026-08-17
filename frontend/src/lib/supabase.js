@@ -115,12 +115,23 @@ export function mapSupabaseUser(sbUser, overrides = {}) {
   if (!sbUser) return null;
   const meta = sbUser.user_metadata || {};
   const role = resolveAuthRole(overrides.role, meta.role, meta.intended_role);
-  const name = String(overrides.name || meta.name || sbUser.email?.split("@")[0] || "User").trim();
+  const name = String(
+    overrides.name ||
+      meta.full_name ||
+      meta.name ||
+      meta.preferred_username ||
+      sbUser.email?.split("@")[0] ||
+      "User",
+  ).trim();
+  const avatarUrl = String(
+    overrides.avatar_url || meta.avatar_url || meta.picture || "",
+  ).trim();
   return {
     id: sbUser.id,
     email: sbUser.email || "",
     name,
     role,
+    avatar_url: avatarUrl,
     avatar_letter: name.charAt(0).toUpperCase() || "U",
     created_at: sbUser.created_at || null,
     headline: meta.headline || "",

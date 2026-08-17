@@ -43,6 +43,7 @@ export async function ensureProfile({ name, role } = {}) {
   const resolvedName = String(
     name || meta.full_name || meta.name || user.email?.split("@")[0] || ""
   ).trim();
+  const googleAvatar = String(meta.avatar_url || meta.picture || "").trim();
 
   const existing = await getProfile(user.id);
   if (existing) {
@@ -64,10 +65,18 @@ export async function ensureProfile({ name, role } = {}) {
       }
     }
 
+    const patch = {};
     if (resolvedName && existing.full_name !== resolvedName) {
+      patch.full_name = resolvedName;
+    }
+    // Fill avatar once from Google; never overwrite a user-set avatar
+    if (googleAvatar && !existing.avatar_url) {
+      patch.avatar_url = googleAvatar;
+    }
+    if (Object.keys(patch).length > 0) {
       const { data, error } = await client
         .from("profiles")
-        .update({ full_name: resolvedName })
+        .update(patch)
         .eq("id", user.id)
         .select("id, full_name, role, status, avatar_url, resume_url, portfolio_url, created_at")
         .single();
@@ -77,13 +86,14 @@ export async function ensureProfile({ name, role } = {}) {
     return existing;
   }
 
-  // Insert-only: trigger may race; never overwrite role/avatar on conflict
+  // Insert-only: trigger may race; never overwrite role on conflict
   const { data, error } = await client
     .from("profiles")
     .insert({
       id: user.id,
       full_name: resolvedName,
       role: createRole,
+      ...(googleAvatar ? { avatar_url: googleAvatar } : {}),
     })
     .select("id, full_name, role, status, avatar_url, created_at")
     .maybeSingle();

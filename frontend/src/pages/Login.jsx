@@ -158,7 +158,7 @@ export default function Login() {
             className="mt-4 w-full text-sm border skl-border rounded-full py-3 hover:bg-neutral-50 transition disabled:opacity-60"
             data-testid="login-google-btn"
           >
-            Continue with Google
+            {loading ? "Connecting to Google…" : "Continue with Google"}
           </button>
 
           <div className="mt-6 flex items-center gap-2">
