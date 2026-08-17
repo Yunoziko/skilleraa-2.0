@@ -51,7 +51,21 @@ In [Supabase Dashboard](https://supabase.com/dashboard) → project **skilleraa*
 | | `https://skilleraa-2-0.vercel.app/**` |
 | | `http://localhost:3000/**` |
 
-Frontend redirects use `window.location.origin` (so production uses `https://www.skilleraa.com` automatically).
+### Demo accounts (Supabase Auth)
+
+Production demo logins on the Login page:
+
+| Email | Password | Role |
+|-------|----------|------|
+| `student@skilleraa.com` | `Student@1234` | student |
+| `client@skilleraa.com` | `Client@1234` | client |
+
+These users must exist and be **email-confirmed** in Supabase Auth. After a project restore they may need to be recreated.
+
+### Google login (Dashboard)
+
+Supabase → **Authentication** → **Providers** → **Google** → Enable, then add Google Cloud OAuth Client ID/Secret.
+Redirect URIs must include your Site URL and `/auth/callback` (see Auth URL table above).
 ### Custom domain (Hostinger DNS → Vercel)
 
 1. Vercel → Project → **Settings → Domains** → add `skilleraa.com` and `www.skilleraa.com`.
