@@ -1,12 +1,12 @@
+# Used when Vercel Root Directory = frontend.
+# Do not ignore `build` — that is the CRA output directory.
 node_modules
-build
-coverage
+.vercel
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
-*.log
-.DS_Store
+coverage
 FRONTEND_AUDIT.md
 README.md

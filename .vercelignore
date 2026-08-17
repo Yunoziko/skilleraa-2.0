@@ -1,4 +1,5 @@
-# Ignore backend/Python paths. Do NOT ignore frontend/build (Vercel output).
+# Repo-root ignores for accidental root deploys. Prefer Root Directory = frontend.
+# Never ignore frontend/build.
 api
 backend
 legacy

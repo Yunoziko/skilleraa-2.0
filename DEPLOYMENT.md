@@ -6,50 +6,44 @@ Beta launch runbook for frontend, backend, Supabase, Razorpay, and custom domain
 
 ## 1. Frontend deployment (Vercel)
 
-This app is **Create React App (CRA) + Craco**, not Next.js. There is no `NEXT_PUBLIC_*` usage. The API runs on **Railway**; Vercel only hosts the static frontend.
+This app is **Create React App (CRA) + Craco**, not Next.js. API runs on **Railway**.
 
-### Recommended settings (Root Directory = `frontend`)
+### Required Vercel project settings
 
-1. Import GitHub repo `Yunoziko/skilleraa-2.0` in [Vercel](https://vercel.com).
-2. **Root Directory:** `frontend` (required — monorepo; app lives under `frontend/`)
-3. **Framework Preset:** Create React App
-4. **Install Command:** `npm ci` (or leave default `npm install`)
-5. **Build Command:** `CI=true npm run build`
-6. **Output Directory:** `build`
-7. SPA rewrites: `frontend/vercel.json` (already in repo)
-8. Environment variables (Production + Preview):
+| Setting | Value |
+|---------|--------|
+| **Root Directory** | `frontend` |
+| **Framework Preset** | Create React App |
+| **Install Command** | `npm install` |
+| **Build Command** | `npm run build` |
+| **Output Directory** | `build` |
+
+Config file: `frontend/vercel.json` (SPA rewrites to `index.html`). There is **no** root `vercel.json` — do not deploy from repo root.
+
+### Environment variables (Production + Preview)
 
 | Name | Value |
 |------|--------|
 | `REACT_APP_SUPABASE_URL` | Supabase project URL |
 | `REACT_APP_SUPABASE_ANON_KEY` | Anon / publishable key |
 | `REACT_APP_BACKEND_URL` | `https://skilleraa-20-production.up.railway.app` (no trailing slash) |
-| `NEXT_PUBLIC_API_URL` | same Railway origin (optional alias; wired via craco) |
 
-Do **not** point the Vercel domain at Railway. API calls go to Railway from the browser; Vercel only hosts static React.
+Optional alias: `NEXT_PUBLIC_API_URL` (same Railway origin). Never put `SERVICE_ROLE` or Razorpay secrets in Vercel frontend env.
 
-9. Deploy. Confirm: refresh on `/login`, `/student`, `/admin` does not 404.
+After deploy: set Railway `CORS_ORIGINS` to include `https://skilleraa-2-0.vercel.app`, `https://www.skilleraa.com`, `https://skilleraa.com`.
 
-### Reconnect if Vercel still points at an old repo/project
+### Custom domain (Hostinger DNS → Vercel)
 
-Vercel does not auto-switch when you rename or replace a GitHub repo. Local `.vercel` (gitignored) may still reference an old project name like `skilleraa-2.0-main`.
+1. Vercel → Project → **Settings → Domains** → add `skilleraa.com` and `www.skilleraa.com`.
+2. At Hostinger DNS, replace parked/Hostinger A/CNAME defaults with the records Vercel shows (typically):
+   - **Apex `skilleraa.com`:** A record → `76.76.21.21` (or Vercel’s current A value)
+   - **`www`:** CNAME → `cname.vercel-dns.com` (or the exact CNAME Vercel displays)
+3. Remove Hostinger parking / temporary page records that conflict.
+4. Wait for DNS propagation; SSL is issued by Vercel automatically.
 
-1. Vercel Dashboard → open the **old** project (or create a **new** project — preferred if the old one is messy).
-2. **Settings → Git → Disconnect** the old repository (if connected).
-3. **Add / Connect** GitHub repo: `Yunoziko/skilleraa-2.0` (authorize the Vercel GitHub App for that org/user if the repo is missing from the list).
-4. **Settings → General → Root Directory** → `frontend` → Save.
-5. **Settings → General**: Framework = Create React App; Install / Build / Output as above.
-6. **Settings → Environment Variables**: set the three `REACT_APP_*` values for Production (and Preview if needed).
-7. **Deployments → Redeploy** (or push a commit to `main`).
-8. On Railway, set `CORS_ORIGINS` to include the new Vercel URL(s), e.g. `https://your-app.vercel.app`.
-9. In Supabase Auth, add the Vercel origin to Site URL / Redirect URLs.
+### Why `{"detail":"Not Found"}` appears
 
-### Why detection fails
-
-- Wrong GitHub App permissions (repo not installed for Vercel).
-- Project still linked to a deleted/renamed/forked repo.
-- Root Directory left empty → Vercel looks for a root `package.json` (there is none; only `frontend/package.json`).
-- Old root `api/` + Python Vercel entry served FastAPI (`{"detail":"Not Found"}` on `/`). That entry is moved to `legacy/vercel-python-api/`; root `vercel.json` deploys only the CRA frontend.
+That JSON is **FastAPI**, not React. It means the Vercel project served the API (or an old Python deploy) instead of `frontend/build`. Fix: Root Directory = `frontend`, redeploy, confirm `/` returns HTML.
 
 ---
 
