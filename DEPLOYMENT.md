@@ -64,6 +64,21 @@ If `POST /api/auth/sync` returns **503** `Supabase auth is not configured on the
 | `CORS_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000,https://www.skilleraa.com,https://skilleraa.com,https://skilleraa-2-0.vercel.app` |
 
 Frontend login still works without sync (Supabase Auth is browser-side), but job APIs that verify JWTs on Railway need the JWT secret.
+
+### Demo accounts (Supabase Auth)
+
+| Email | Password | Role |
+|-------|----------|------|
+| `student@skilleraa.com` | `Student@1234` | student |
+| `client@skilleraa.com` | `Client@1234` | client |
+
+Recreate after a project restore with `scripts/seed_demo_auth_users.sql` in the Supabase SQL editor.
+
+### Google login (Dashboard)
+
+Supabase → **Authentication** → **Providers** → **Google** → Enable, then add Google Cloud OAuth Client ID/Secret.  
+Redirect URIs must include Site URL and `/auth/callback` (see Auth URL table above).
+
 ### Custom domain (Hostinger DNS → Vercel)
 
 1. Vercel → Project → **Settings → Domains** → add `skilleraa.com` and `www.skilleraa.com`.
